@@ -62,7 +62,6 @@ func main() {
 ╔═══════════════════════════════════════════════════╗
 ║          kubectl-tricorder - Container Security   ║
 ║        "I'm a scanner, not a miracle worker!"     ║
-║        Making your clusters secure, Captain       ║
 ║          For authorized security testing only.    ║
 ╚═══════════════════════════════════════════════════╝
 `)
