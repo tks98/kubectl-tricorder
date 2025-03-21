@@ -143,7 +143,7 @@ Verify the installation with `kubectl tricorder --help`
 
 ## Testing and Examples
 
-We provide a deliberately insecure test pod configuration in `test/test-pod.yaml` to help you understand container security risks and see how kubectl-tricorder works. This pod contains numerous security issues including privileged settings, excessive capabilities, sensitive mounts, and more.
+Provided is a deliberately insecure test pod configuration in `test/test-pod.yaml` to help you understand container security risks and see how kubectl-tricorder works. This pod contains numerous security issues including privileged settings, excessive capabilities, sensitive mounts, and more.
 
 ```bash
 # Apply the test configuration (do NOT use in production clusters)
