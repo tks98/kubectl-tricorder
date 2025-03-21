@@ -14,6 +14,7 @@ sensitiveMounts:
   - "/dev"            # Device nodes can be sensitive
   - "/var/lib/kubelet" # Kubernetes node data directory
   - "/run/secrets"    # Secrets mounted by orchestration systems
+  - "/sys/fs/bpf"     # eBPF filesystem access
 
 # Critical system paths that shouldn't be writable
 criticalPaths:
@@ -40,7 +41,11 @@ suspiciousCommands:
   - "scp"         
   - "tshark"        
   - "hping"          
-  - "masscan"        
+  - "masscan"
+  - "socat"         # Network utility for data transfer
+  - "bpftrace"      # eBPF tracing tool
+  - "bpftool"       # eBPF manipulation tool
+  - "bcc-tools"     # BPF Compiler Collection tools
 
 # Patterns for cryptocurrency miners
 minerProcesses:
@@ -82,6 +87,7 @@ dangerousCapabilities:
   CAP_SYS_PTRACE: HIGH     # Added: Allows process debugging, potentially exploitable
   CAP_SYS_MODULE: CRITICAL # Added: Allows module manipulation
   CAP_SYS_BOOT: HIGH       # Added: Can control boot-related functions
+  CAP_BPF: HIGH           # Added: Allows creating and loading eBPF programs
 
 # RBAC permissions that are considered dangerous
 dangerousPermissions:
