@@ -64,7 +64,7 @@ jobs:
 
       - name: Create Krew manifest
         run: |
-          cat krew-manifest.yaml | \
+          cat krew/krew-manifest.yaml | \
           sed "s/{{ .TagName }}/${{ env.VERSION }}/g" | \
           sed "s/{{ .LinuxSha256 }}/${{ env.LINUX_SHA256 }}/g" | \
           sed "s/{{ .DarwinSha256 }}/${{ env.DARWIN_SHA256 }}/g" | \
