@@ -11,6 +11,36 @@ A kubectl plugin that detects container vulnerabilities, privileges risks, and e
 - Customizable security checks through configuration files
 - Detects eBPF security risks and access vectors
 
+## How It Works
+
+kubectl-tricorder works by connecting to your Kubernetes cluster and analyzing the runtime configuration of specified pods. It performs non-intrusive inspection of container settings, examining:
+
+- Container security contexts and privilege settings
+- Mounted volumes and filesystem access
+- Environment variables and sensitive data exposure
+- Linux capabilities and security profiles
+- Resource access and potential escape vectors
+- RBAC permissions of associated service accounts
+- eBPF access and related security concerns
+
+The tool leverages the Kubernetes API to gather configuration data and uses the exec API (similar to `kubectl exec`) to run diagnostic commands inside target containers. Specifically:
+
+1. **Initial API Analysis**: Tricorder first gathers pod specifications, security contexts, and configuration data from the Kubernetes API server.
+
+2. **Container Inspection**: For deeper analysis, the tool executes non-destructive commands inside the target container using the Kubernetes exec API, including:
+   - File permission checks on sensitive paths
+   - Process enumeration to detect risky applications
+   - Environment variable inspection
+   - Capability and privilege detection
+   - Kernel module and syscall inspection
+   - Network configuration analysis
+
+3. **Host Context Awareness**: By examining mount points and namespaces, tricorder can identify where container boundaries might be compromised without actually exploiting these vectors.
+
+4. **RBAC Analysis**: Service account tokens are analyzed to determine what permissions are available to the container.
+
+All inspections are performed using read-only operations that don't modify container state, ensuring safety even in production environments. The tool requires the same level of access as running `kubectl exec` on the target pods.
+
 ## Usage
 
 ```bash
