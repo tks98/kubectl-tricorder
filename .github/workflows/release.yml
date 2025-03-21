@@ -1,10 +1,10 @@
 name: Release kubectl-tricorder
-
 on:
   push:
     tags:
       - 'v*'
-
+permissions:
+  contents: write
 jobs:
   build:
     name: Build and Release
