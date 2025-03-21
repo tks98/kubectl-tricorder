@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -45,17 +46,22 @@ type Report struct {
 	ScanTime      string         `json:"scan_time"`
 	RiskSummary   map[string]int `json:"risk_summary"`
 	Findings      []Finding      `json:"findings"`
+	WorkloadType  string         `json:"workload_type,omitempty"` // Deployment, StatefulSet, DaemonSet, etc.
 }
 
 type ContainerSecurityTester struct {
-	clientset *kubernetes.Clientset
-	config    *rest.Config
-	namespace string
-	pod       string
-	container string
-	verbose   bool
-	findings  []Finding
-	risks     map[string]int
+	clientset                *kubernetes.Clientset
+	config                   *rest.Config
+	namespace                string
+	pod                      string
+	container                string
+	verbose                  bool
+	findings                 []Finding
+	risks                    map[string]int
+	workloadType             string
+	scanAllContainers        bool
+	podSecurityContext       *corev1.PodSecurityContext
+	containerSecurityContext *corev1.SecurityContext
 }
 
 // newSecurityTester creates and returns a ContainerSecurityTester using either in-cluster config or a kubeconfig file.
@@ -82,16 +88,48 @@ func newSecurityTester(namespace, pod, container string, verbose bool) (*Contain
 		return nil, fmt.Errorf("failed to create K8s client: %v", err)
 	}
 
-	return &ContainerSecurityTester{
-		clientset: clientset,
-		config:    config,
-		namespace: namespace,
-		pod:       pod,
-		container: container,
-		verbose:   verbose,
-		findings:  []Finding{},
-		risks:     map[string]int{RISK_LOW: 0, RISK_MEDIUM: 0, RISK_HIGH: 0, RISK_CRITICAL: 0},
-	}, nil
+	tester := &ContainerSecurityTester{
+		clientset:         clientset,
+		config:            config,
+		namespace:         namespace,
+		pod:               pod,
+		container:         container,
+		verbose:           verbose,
+		findings:          []Finding{},
+		risks:             map[string]int{RISK_LOW: 0, RISK_MEDIUM: 0, RISK_HIGH: 0, RISK_CRITICAL: 0},
+		scanAllContainers: false,
+	}
+
+	// Fetch initial pod info to get security context
+	tester.fetchPodDetails()
+
+	return tester, nil
+}
+
+// fetchPodDetails gets initial pod and container information
+func (t *ContainerSecurityTester) fetchPodDetails() {
+	pod, err := t.clientset.CoreV1().Pods(t.namespace).Get(context.TODO(), t.pod, metav1.GetOptions{})
+	if err != nil {
+		t.log(fmt.Sprintf("Error getting pod details: %v", err))
+		return
+	}
+
+	// Store pod security context
+	t.podSecurityContext = pod.Spec.SecurityContext
+
+	// Store workload information if available
+	if len(pod.OwnerReferences) > 0 {
+		t.workloadType = pod.OwnerReferences[0].Kind
+	}
+
+	// Find our container and store information
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == t.container {
+			// Store container security context
+			t.containerSecurityContext = pod.Spec.Containers[i].SecurityContext
+			break
+		}
+	}
 }
 
 // log logs messages using Logrus if verbose mode is enabled.
@@ -485,6 +523,90 @@ func (t *ContainerSecurityTester) checkReadOnlyFilesystem() {
 	}
 }
 
+// checkSecretsInEnvVars searches for potential secrets in environment variables.
+func (t *ContainerSecurityTester) checkSecretsInEnvVars() {
+	t.log("Checking for secrets in environment variables...")
+
+	// Get pod details to check environment variables
+	pod, err := t.clientset.CoreV1().Pods(t.namespace).Get(context.TODO(), t.pod, metav1.GetOptions{})
+	if err != nil {
+		t.log(fmt.Sprintf("Error getting pod details: %v", err))
+		return
+	}
+
+	// Find our container
+	var container *corev1.Container
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == t.container {
+			container = &pod.Spec.Containers[i]
+			break
+		}
+	}
+	if container == nil {
+		t.log("Container not found in pod spec")
+		return
+	}
+
+	// Patterns to detect potential secrets
+	sensitivePatterns := map[string]*regexp.Regexp{
+		"AWS Key":     regexp.MustCompile(`(?i)(aws_access_key|aws_secret_key|aws_session_token)`),
+		"Password":    regexp.MustCompile(`(?i)(password|passwd|pass)`),
+		"API Key":     regexp.MustCompile(`(?i)(api[_-]?key|apikey|api[_-]?token|token)`),
+		"Certificate": regexp.MustCompile(`(?i)(ssl|tls|cert|certificate|key)`),
+		"OAuth":       regexp.MustCompile(`(?i)(oauth|auth[_-]?token)`),
+		"Database":    regexp.MustCompile(`(?i)(database|db)[_-]?(password|passwd|pwd)`),
+		"Secret":      regexp.MustCompile(`(?i)secret`),
+		"Credentials": regexp.MustCompile(`(?i)cred(ential)?s?`),
+	}
+
+	// Check environment variables
+	for _, env := range container.Env {
+		// Skip if value is coming from a Secret reference
+		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+			continue // This is OK as it's using Kubernetes Secrets
+		}
+
+		// Check for sensitive patterns in variable names
+		for patternName, pattern := range sensitivePatterns {
+			if pattern.MatchString(env.Name) {
+				t.addFinding(
+					fmt.Sprintf("Potentially sensitive data in environment variable: %s", env.Name),
+					fmt.Sprintf("Environment variable name matches %s pattern", patternName),
+					RISK_HIGH,
+					"Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables",
+				)
+				break
+			}
+		}
+	}
+
+	// Check for secrets from ConfigMaps
+	for _, envFrom := range container.EnvFrom {
+		if envFrom.ConfigMapRef != nil {
+			cm, err := t.clientset.CoreV1().ConfigMaps(t.namespace).Get(context.TODO(), envFrom.ConfigMapRef.Name, metav1.GetOptions{})
+			if err != nil {
+				t.log(fmt.Sprintf("Error getting ConfigMap: %v", err))
+				continue
+			}
+
+			for key := range cm.Data {
+				// Check for sensitive patterns in ConfigMap keys
+				for patternName, pattern := range sensitivePatterns {
+					if pattern.MatchString(key) {
+						t.addFinding(
+							fmt.Sprintf("Potentially sensitive data in ConfigMap: %s", envFrom.ConfigMapRef.Name),
+							fmt.Sprintf("ConfigMap key '%s' matches %s pattern", key, patternName),
+							RISK_HIGH,
+							"Store sensitive data in Kubernetes Secrets instead of ConfigMaps",
+						)
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
 // runAllChecks executes all security tests concurrently.
 func (t *ContainerSecurityTester) runAllChecks() {
 	t.log("Starting container security tests...")
@@ -502,6 +624,7 @@ func (t *ContainerSecurityTester) runAllChecks() {
 		t.checkContainerResources,
 		t.checkNonRootUser,
 		t.checkReadOnlyFilesystem,
+		t.checkSecretsInEnvVars,
 	}
 
 	for _, check := range checks {
@@ -525,6 +648,7 @@ func (t *ContainerSecurityTester) generateReport() Report {
 		ScanTime:      time.Now().Format(time.RFC3339),
 		RiskSummary:   t.risks,
 		Findings:      t.findings,
+		WorkloadType:  t.workloadType,
 	}
 }
 
@@ -535,7 +659,7 @@ func main() {
 	})
 
 	var namespace, pod, container, outputFile string
-	var verbose bool
+	var verbose, scanAllContainers bool
 
 	// Command-line flag parsing.
 	flag.StringVar(&namespace, "namespace", "", "Namespace of the target pod")
@@ -548,6 +672,8 @@ func main() {
 	flag.StringVar(&outputFile, "o", "", "Output file for JSON report (shorthand)")
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose output")
 	flag.BoolVar(&verbose, "v", false, "Enable verbose output (shorthand)")
+	flag.BoolVar(&scanAllContainers, "all-containers", false, "Scan all containers in the pod")
+	flag.BoolVar(&scanAllContainers, "a", false, "Scan all containers in the pod (shorthand)")
 	flag.Parse()
 
 	// Print banner.
@@ -576,30 +702,56 @@ func main() {
 		}
 	}
 
-	// If container not specified, try to get the first container in the pod.
-	if container == "" {
-		fmt.Println("Container name not specified, trying to get the first container in the pod...")
-		var kubeconfig string
-		if home := homedir.HomeDir(); home != "" {
-			kubeconfig = filepath.Join(home, ".kube", "config")
+	// Setup kubernetes client
+	var kubeconfig string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = filepath.Join(home, ".kube", "config")
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		fmt.Printf("Error building kubeconfig: %v\n", err)
+		os.Exit(1)
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		fmt.Printf("Error creating Kubernetes client: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Get pod details
+	podInfo, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), pod, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Error getting pod details: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Determine which containers to scan
+	containersToScan := []string{}
+	if container != "" {
+		// Scan the specified container
+		containerExists := false
+		for _, c := range podInfo.Spec.Containers {
+			if c.Name == container {
+				containerExists = true
+				break
+			}
 		}
-		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			fmt.Printf("Error building kubeconfig: %v\n", err)
+		if !containerExists {
+			fmt.Printf("Error: container '%s' not found in pod\n", container)
 			os.Exit(1)
 		}
-		clientset, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			fmt.Printf("Error creating Kubernetes client: %v\n", err)
-			os.Exit(1)
+		containersToScan = append(containersToScan, container)
+	} else if scanAllContainers {
+		// Scan all containers in the pod
+		for _, c := range podInfo.Spec.Containers {
+			containersToScan = append(containersToScan, c.Name)
 		}
-		podInfo, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), pod, metav1.GetOptions{})
-		if err != nil {
-			fmt.Printf("Error getting pod details: %v\n", err)
-			os.Exit(1)
-		}
+		fmt.Printf("Scanning all %d containers in pod\n", len(containersToScan))
+	} else {
+		// Default: scan the first container
 		if len(podInfo.Spec.Containers) > 0 {
 			container = podInfo.Spec.Containers[0].Name
+			containersToScan = append(containersToScan, container)
 			fmt.Printf("Using container: %s\n", container)
 		} else {
 			fmt.Println("No containers found in the pod")
@@ -607,29 +759,78 @@ func main() {
 		}
 	}
 
-	// Create and run the security tester.
-	tester, err := newSecurityTester(namespace, pod, container, verbose)
-	if err != nil {
-		fmt.Printf("Error initializing security tester: %v\n", err)
-		os.Exit(1)
+	// Results for all containers
+	allFindings := []Finding{}
+	allRisks := map[string]int{RISK_LOW: 0, RISK_MEDIUM: 0, RISK_HIGH: 0, RISK_CRITICAL: 0}
+	var allReports []Report
+
+	// Scan each container
+	for _, containerName := range containersToScan {
+		fmt.Printf("\nScanning container: %s\n", containerName)
+
+		// Create and run the security tester for this container
+		tester, err := newSecurityTester(namespace, pod, containerName, verbose)
+		if err != nil {
+			fmt.Printf("Error initializing security tester for container %s: %v\n", containerName, err)
+			continue
+		}
+		tester.scanAllContainers = scanAllContainers
+
+		tester.runAllChecks()
+		report := tester.generateReport()
+		allReports = append(allReports, report)
+
+		// Aggregate findings and risks
+		allFindings = append(allFindings, report.Findings...)
+		for risk, count := range report.RiskSummary {
+			allRisks[risk] += count
+		}
+
+		// Print container summary
+		fmt.Printf("\n=== Container Security Results: %s ===\n", containerName)
+		fmt.Printf("%s: %d\n", color.RedString("Critical issues"), report.RiskSummary[RISK_CRITICAL])
+		fmt.Printf("%s: %d\n", color.YellowString("High risk issues"), report.RiskSummary[RISK_HIGH])
+		fmt.Printf("%s: %d\n", color.CyanString("Medium risk issues"), report.RiskSummary[RISK_MEDIUM])
+		fmt.Printf("%s: %d\n", color.GreenString("Low risk issues"), report.RiskSummary[RISK_LOW])
 	}
 
-	tester.runAllChecks()
-	report := tester.generateReport()
-
-	// Print summary.
-	fmt.Println("\n=== Security Scan Results ===")
-	fmt.Printf("Pod: %s\n", report.PodName)
-	fmt.Printf("Container: %s\n", report.ContainerName)
-	fmt.Printf("Namespace: %s\n", report.Namespace)
-	fmt.Printf("%s: %d\n", color.RedString("Critical issues"), report.RiskSummary[RISK_CRITICAL])
-	fmt.Printf("%s: %d\n", color.YellowString("High risk issues"), report.RiskSummary[RISK_HIGH])
-	fmt.Printf("%s: %d\n", color.CyanString("Medium risk issues"), report.RiskSummary[RISK_MEDIUM])
-	fmt.Printf("%s: %d\n", color.GreenString("Low risk issues"), report.RiskSummary[RISK_LOW])
+	// Print overall summary if scanning multiple containers
+	if len(containersToScan) > 1 {
+		fmt.Printf("\n=== Overall Pod Security Results ===\n")
+		fmt.Printf("Pod: %s\n", pod)
+		fmt.Printf("Namespace: %s\n", namespace)
+		fmt.Printf("Containers scanned: %d\n", len(containersToScan))
+		fmt.Printf("%s: %d\n", color.RedString("Critical issues"), allRisks[RISK_CRITICAL])
+		fmt.Printf("%s: %d\n", color.YellowString("High risk issues"), allRisks[RISK_HIGH])
+		fmt.Printf("%s: %d\n", color.CyanString("Medium risk issues"), allRisks[RISK_MEDIUM])
+		fmt.Printf("%s: %d\n", color.GreenString("Low risk issues"), allRisks[RISK_LOW])
+	}
 
 	// Output detailed findings either to a file or to the console.
 	if outputFile != "" {
-		jsonData, err := json.MarshalIndent(report, "", "  ")
+		var outputData interface{}
+		if len(containersToScan) > 1 {
+			// Create a combined report for all containers
+			combinedReport := struct {
+				PodName          string         `json:"pod_name"`
+				Namespace        string         `json:"namespace"`
+				ScanTime         string         `json:"scan_time"`
+				RiskSummary      map[string]int `json:"risk_summary"`
+				ContainerReports []Report       `json:"container_reports"`
+			}{
+				PodName:          pod,
+				Namespace:        namespace,
+				ScanTime:         time.Now().Format(time.RFC3339),
+				RiskSummary:      allRisks,
+				ContainerReports: allReports,
+			}
+			outputData = combinedReport
+		} else if len(allReports) > 0 {
+			// Just use the single container report
+			outputData = allReports[0]
+		}
+
+		jsonData, err := json.MarshalIndent(outputData, "", "  ")
 		if err != nil {
 			fmt.Printf("Error creating JSON report: %v\n", err)
 			os.Exit(1)
@@ -640,9 +841,10 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("\nDetailed report saved to %s\n", outputFile)
-	} else {
+	} else if len(allFindings) > 0 {
+		// Print detailed findings to console
 		fmt.Println("\n=== Detailed Findings ===")
-		for _, finding := range report.Findings {
+		for _, finding := range allFindings {
 			var riskColor func(format string, a ...interface{}) string
 			switch finding.Risk {
 			case RISK_CRITICAL:
