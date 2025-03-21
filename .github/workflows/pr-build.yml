@@ -23,13 +23,13 @@ jobs:
           go-version: '1.23'
 
       - name: Build for Linux amd64
-        run: GOOS=linux GOARCH=amd64 go build -o kubectl-tricorder-linux-amd64 .
+        run: GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X main.Version=dev-$(git rev-parse --short HEAD)" -o kubectl-tricorder-linux-amd64 .
 
       - name: Build for macOS amd64
-        run: GOOS=darwin GOARCH=amd64 go build -o kubectl-tricorder-darwin-amd64 .
+        run: GOOS=darwin GOARCH=amd64 go build -ldflags "-w -s -X main.Version=dev-$(git rev-parse --short HEAD)" -o kubectl-tricorder-darwin-amd64 .
 
       - name: Build for macOS arm64
-        run: GOOS=darwin GOARCH=arm64 go build -o kubectl-tricorder-darwin-arm64 .
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags "-w -s -X main.Version=dev-$(git rev-parse --short HEAD)" -o kubectl-tricorder-darwin-arm64 .
         
       - name: Verify binaries
         run: |

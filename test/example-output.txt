@@ -1,0 +1,511 @@
+INFO[2025-03-21T18:10:00-05:00] No configuration file specified, using default configuration 
+╔═══════════════════════════════════════════════════╗
+║          kubectl-tricorder - Container Security   ║
+║          For authorized security testing only.    ║
+╚═══════════════════════════════════════════════════╝
+
+Do you have permission to test this container? (y/n): y
+
+Using container: security-test
+
+Scanning container: security-test
+
+=== Container Security Results: security-test ===
+Critical issues: 39
+High risk issues: 69
+Medium risk issues: 15
+Low risk issues: 0
+
+=== Detailed Findings ===
+
+[MEDIUM] No CPU limits set
+Description: Container has no CPU limits which could lead to resource exhaustion
+Mitigation: Set appropriate CPU limits for the container
+
+[MEDIUM] No memory limits set
+Description: Container has no memory limits which could lead to resource exhaustion
+Mitigation: Set appropriate memory limits for the container
+
+[CRITICAL] Critical hostPath volume mounted: /
+Description: Pod has access to sensitive host filesystem paths which enables container escape
+Mitigation: Remove hostPath volume mounts for sensitive paths
+
+[CRITICAL] Critical hostPath volume mounted: /proc
+Description: Pod has access to sensitive host filesystem paths which enables container escape
+Mitigation: Remove hostPath volume mounts for sensitive paths
+
+[CRITICAL] Critical hostPath volume mounted: /sys
+Description: Pod has access to sensitive host filesystem paths which enables container escape
+Mitigation: Remove hostPath volume mounts for sensitive paths
+
+[CRITICAL] Critical hostPath volume mounted: /etc
+Description: Pod has access to sensitive host filesystem paths which enables container escape
+Mitigation: Remove hostPath volume mounts for sensitive paths
+
+[CRITICAL] Critical hostPath volume mounted: /var
+Description: Pod has access to sensitive host filesystem paths which enables container escape
+Mitigation: Remove hostPath volume mounts for sensitive paths
+
+[CRITICAL] Critical hostPath volume mounted: /sys/fs/bpf
+Description: Pod has access to sensitive host filesystem paths which enables container escape
+Mitigation: Remove hostPath volume mounts for sensitive paths
+
+[HIGH] No network policies in namespace
+Description: No Kubernetes NetworkPolicies found in this namespace, allowing unrestricted pod communication
+Mitigation: Implement NetworkPolicies to restrict pod-to-pod communication
+
+[HIGH] Potentially sensitive data in environment variable: DB_PASSWORD
+Description: Environment variable name matches Password pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: API_KEY
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: AWS_ACCESS_KEY
+Description: Environment variable name matches AWS Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: AWS_SECRET_KEY
+Description: Environment variable name matches AWS Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: AWS_SESSION_TOKEN
+Description: Environment variable name matches AWS Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: CREDIT_CARD_NUMBER
+Description: Environment variable name matches Credentials pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: AZURE_CLIENT_SECRET
+Description: Environment variable name matches Secret pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: GOOGLE_APPLICATION_CREDENTIALS
+Description: Environment variable name matches Credentials pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: DO_AUTH_TOKEN
+Description: Environment variable name matches API Token pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: DIGITALOCEAN_ACCESS_TOKEN
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: ALICLOUD_ACCESS_KEY
+Description: Environment variable name matches Certificate pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: IBM_CLOUD_API_KEY
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: RACKSPACE_API_KEY
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: GITHUB_TOKEN
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: GITLAB_TOKEN
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: SLACK_TOKEN
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: GOOGLE_API_KEY
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: STRIPE_SECRET
+Description: Environment variable name matches Secret pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: HEROKU_API_KEY
+Description: Environment variable name matches API Key pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Potentially sensitive data in environment variable: JWT_SECRET
+Description: Environment variable name matches Secret pattern
+Mitigation: Store sensitive data in Kubernetes Secrets and reference them instead of using plain environment variables
+
+[HIGH] Excessive RBAC permission: create pods
+Description: Service account 'default' has permission to create pods which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'DATABASE_PASSWORD' matches Database pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'PGP_PRIVATE_KEY' matches Certificate pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'PRIVATE_KEY' matches Certificate pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'SECRET_TOKEN' matches Secret pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'SECRET_KEY' matches Certificate pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'SSH_KEY' matches Certificate pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'ACCESS_KEY' matches Certificate pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'API_SECRET' matches Secret pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'DATABASE_CREDENTIALS' matches Credentials pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'OPENSSH_PRIVATE_KEY' matches Certificate pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'PASSWORD' matches Password pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Potentially sensitive data in ConfigMap: secrets-configmap
+Description: ConfigMap key 'PASSWORD_ADMIN' matches Password pattern
+Mitigation: Store sensitive data in Kubernetes Secrets instead of ConfigMaps
+
+[HIGH] Excessive RBAC permission: delete pods
+Description: Service account 'default' has permission to delete pods which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: exec pods
+Description: Service account 'default' has permission to exec pods which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: attach pods
+Description: Service account 'default' has permission to attach pods which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: portforward pods
+Description: Service account 'default' has permission to portforward pods which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: get secrets
+Description: Service account 'default' has permission to get secrets which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: list secrets
+Description: Service account 'default' has permission to list secrets which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: create secrets
+Description: Service account 'default' has permission to create secrets which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: create deployments
+Description: Service account 'default' has permission to create deployments which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: delete deployments
+Description: Service account 'default' has permission to delete deployments which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Excessive RBAC permission: create daemonsets
+Description: Service account 'default' has permission to create daemonsets which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] No effective seccomp profile
+Description: Container can execute dangerous syscalls like unshare, which may assist in container escape
+Mitigation: Enable a seccomp profile that restricts dangerous syscalls
+
+[HIGH] Excessive RBAC permission: bind clusterroles
+Description: Service account 'default' has permission to bind clusterroles which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: AWS_ACCESS_KEY
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: AWS_SECRET_KEY
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: AZURE_CLIENT_ID
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: AZURE_TENANT_ID
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: AZURE_CLIENT_SECRET
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: GOOGLE_APPLICATION_CREDENTIALS
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: GOOGLE_CLOUD_PROJECT
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: DO_AUTH_TOKEN
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: DIGITALOCEAN_ACCESS_TOKEN
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: ALICLOUD_ACCESS_KEY
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: IBM_CLOUD_API_KEY
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[CRITICAL] Cloud provider credentials found
+Description: Container has access to cloud credentials matching pattern: RACKSPACE_API_KEY
+Mitigation: Remove cloud credentials from container environment and use a secret store
+
+[HIGH] Critical path is writable: /etc/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[HIGH] Service account token automatically mounted
+Description: The pod has a service account token automatically mounted, which could be used for lateral movement
+Mitigation: Set automountServiceAccountToken: false in pod spec unless the token is required
+
+[MEDIUM] CAP_CHOWN enabled
+Description: Container has CAP_CHOWN capability which allows changing file ownership
+Mitigation: Remove CAP_CHOWN capability if not required
+
+[HIGH] CAP_DAC_OVERRIDE enabled
+Description: Container can bypass file permission checks
+Mitigation: Remove CAP_DAC_OVERRIDE capability if not required
+
+[HIGH] CAP_SETUID enabled
+Description: Container can perform arbitrary setuid calls
+Mitigation: Remove CAP_SETUID capability if not required
+
+[HIGH] CAP_NET_ADMIN enabled
+Description: Container can modify network settings and interfaces
+Mitigation: Remove CAP_NET_ADMIN capability if not required
+
+[CRITICAL] CAP_SYS_MODULE enabled
+Description: Container can load kernel modules
+Mitigation: Remove CAP_SYS_MODULE capability
+
+[HIGH] CAP_SYS_PTRACE enabled
+Description: Container can use ptrace to inspect processes
+Mitigation: Remove CAP_SYS_PTRACE capability
+
+[CRITICAL] CAP_SYS_ADMIN enabled
+Description: Container has administrative capabilities that may allow container escape
+Mitigation: Remove CAP_SYS_ADMIN capability
+
+[HIGH] CAP_SYS_BOOT enabled
+Description: Container has CAP_SYS_BOOT capability which may be dangerous
+Mitigation: Remove CAP_SYS_BOOT capability if not required
+
+[HIGH] CAP_BPF enabled
+Description: Container can create and load eBPF programs which could be used for kernel-level access
+Mitigation: Remove CAP_BPF capability unless absolutely necessary
+
+[HIGH] Container running as root
+Description: Container process is running as root which increases the risk of privilege escalation
+Mitigation: Run container as a non-root user
+
+[CRITICAL] Kernel module loading possible
+Description: Container appears able to load kernel modules which may lead to privileged code execution
+Mitigation: Run container without CAP_SYS_MODULE capability
+
+[MEDIUM] Writable filesystem
+Description: Container filesystem is writable which may allow an attacker to modify files
+Mitigation: Set container filesystem to read-only if possible
+
+[CRITICAL] Multiple sensitive paths under /sys
+Description: Container has access to 3 sensitive paths under /sys which may allow container escape
+Mitigation: Remove mounts for paths under /sys
+
+[CRITICAL] Multiple Docker overlay paths mounted
+Description: Container has access to 11 Docker overlay paths which may allow container escape
+Mitigation: Remove mounts for Docker overlay paths
+
+[CRITICAL] Multiple Container ID path paths mounted
+Description: Container has access to 15 Container ID path paths which may allow container escape
+Mitigation: Remove mounts for Container ID path paths
+
+[CRITICAL] Multiple Docker container paths mounted
+Description: Container has access to 5 Docker container paths which may allow container escape
+Mitigation: Remove mounts for Docker container paths
+
+[CRITICAL] UUID path path mounted: /var/lib/kubelet/pods/7fd2dcee-6989-44a8-b1c8-6ad124670237/volumes/kubernetes.io~projected/kube-api-access-j8d77
+Description: Container has access to UUID path path which may allow container escape
+Mitigation: Remove mount for /var/lib/kubelet/pods/7fd2dcee-6989-44a8-b1c8-6ad124670237/volumes/kubernetes.io~projected/kube-api-access-j8d77
+
+[CRITICAL] UUID path path mounted: /var/lib/kubelet/pods/b1c487d7-5e8e-4339-9e10-9b5deabd37b5/volumes/kubernetes.io~projected/kube-api-access-fqk9z
+Description: Container has access to UUID path path which may allow container escape
+Mitigation: Remove mount for /var/lib/kubelet/pods/b1c487d7-5e8e-4339-9e10-9b5deabd37b5/volumes/kubernetes.io~projected/kube-api-access-fqk9z
+
+[CRITICAL] UUID path path mounted: /var/lib/kubelet/pods/685a05a8-0c96-4d14-a7fc-a9cb1014320b/volumes/kubernetes.io~projected/kube-api-access-6lv8z
+Description: Container has access to UUID path path which may allow container escape
+Mitigation: Remove mount for /var/lib/kubelet/pods/685a05a8-0c96-4d14-a7fc-a9cb1014320b/volumes/kubernetes.io~projected/kube-api-access-6lv8z
+
+[CRITICAL] Multiple Kubernetes volume paths mounted
+Description: Container has access to 5 Kubernetes volume paths which may allow container escape
+Mitigation: Remove mounts for Kubernetes volume paths
+
+[CRITICAL] Sensitive path mounted: /var/lib/kubelet
+Description: Container has access to sensitive host path /var/lib/kubelet which may allow container escape
+Mitigation: Remove mount for /var/lib/kubelet
+
+[CRITICAL] Sensitive path mounted: /boot
+Description: Container has access to sensitive host path /boot which may allow container escape
+Mitigation: Remove mount for /boot
+
+[CRITICAL] Multiple sensitive paths under /run/secrets
+Description: Container has access to 2 sensitive paths under /run/secrets which may allow container escape
+Mitigation: Remove mounts for paths under /run/secrets
+
+[CRITICAL] Sensitive path mounted: /etc/kubernetes
+Description: Container has access to sensitive host path /etc/kubernetes which may allow container escape
+Mitigation: Remove mount for /etc/kubernetes
+
+[CRITICAL] Sensitive path mounted: /proc
+Description: Container has access to sensitive host path /proc which may allow container escape
+Mitigation: Remove mount for /proc
+
+[CRITICAL] Multiple sensitive paths under /dev
+Description: Container has access to 5 sensitive paths under /dev which may allow container escape
+Mitigation: Remove mounts for paths under /dev
+
+[HIGH] Container using host network namespace
+Description: Container has full access to host network interfaces and can sniff traffic
+Mitigation: Remove hostNetwork: true from pod specification
+
+[CRITICAL] Excessive RBAC permission: escalate clusterroles
+Description: Service account 'default' has permission to escalate clusterroles which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Critical path is writable: /bin/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[HIGH] Shared user namespace with host
+Description: Container shares user namespace with host which may allow privilege escalation
+Mitigation: Ensure container uses its own user namespace
+
+[MEDIUM] No AppArmor/SELinux profiles detected
+Description: Container is running without additional mandatory access control systems
+Mitigation: Enable AppArmor or SELinux profiles for the container
+
+[MEDIUM] Network tool found: nc
+Description: Container contains network reconnaissance tool 'nc' which could be used for lateral movement
+Mitigation: Remove nc from container image or use a minimal base image
+
+[HIGH] Excessive RBAC permission: get nodes
+Description: Service account 'default' has permission to get nodes which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[CRITICAL] Docker socket mounted
+Description: Docker socket is mounted into container allowing complete control of the Docker daemon
+Mitigation: Remove the Docker socket mount from the container
+
+[HIGH] Critical path is writable: /sbin/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[MEDIUM] Network tool found: netcat
+Description: Container contains network reconnaissance tool 'netcat' which could be used for lateral movement
+Mitigation: Remove netcat from container image or use a minimal base image
+
+[MEDIUM] eBPF programs detected
+Description: Found existing eBPF programs or maps that may indicate container monitoring or potential escape vectors
+Mitigation: Investigate eBPF usage and restrict container capabilities
+
+[CRITICAL] Container running in privileged mode
+Description: Container has full access to host devices which may allow container escape
+Mitigation: Remove privileged: true from the container security context
+
+[HIGH] Excessive RBAC permission: list nodes
+Description: Service account 'default' has permission to list nodes which could be used for privilege escalation
+Mitigation: Implement least privilege RBAC policies
+
+[HIGH] Critical path is writable: /usr/bin/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[HIGH] eBPF tool found: bpftool
+Description: Container contains eBPF development tool bpftool which could be used for kernel-level access
+Mitigation: Remove bpftool from container image
+
+[HIGH] Critical path is writable: /usr/sbin/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[HIGH] eBPF tool found: bpftrace
+Description: Container contains eBPF development tool bpftrace which could be used for kernel-level access
+Mitigation: Remove bpftrace from container image
+
+[HIGH] Critical path is writable: /lib/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[MEDIUM] Network tool found: curl
+Description: Container contains network reconnaissance tool 'curl' which could be used for lateral movement
+Mitigation: Remove curl from container image or use a minimal base image
+
+[HIGH] Critical path is writable: /lib64/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[MEDIUM] Network tool found: ssh
+Description: Container contains network reconnaissance tool 'ssh' which could be used for lateral movement
+Mitigation: Remove ssh from container image or use a minimal base image
+
+[MEDIUM] Process being traced by eBPF
+Description: Container processes appear to be traced by eBPF programs which may indicate unauthorized monitoring
+Mitigation: Investigate eBPF traces and ensure they are authorized
+
+[MEDIUM] Network tool found: scp
+Description: Container contains network reconnaissance tool 'scp' which could be used for lateral movement
+Mitigation: Remove scp from container image or use a minimal base image
+
+[HIGH] Critical path is writable: /var/lib/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[MEDIUM] Network tool found: socat
+Description: Container contains network reconnaissance tool 'socat' which could be used for lateral movement
+Mitigation: Remove socat from container image or use a minimal base image
+
+[HIGH] Critical path is writable: /usr/local/bin/
+Description: Container can write to critical system paths which could allow for persistence
+Mitigation: Make critical paths read-only using a readOnlyRootFilesystem securityContext
+
+[MEDIUM] Network tool found: bpftrace
+Description: Container contains network reconnaissance tool 'bpftrace' which could be used for lateral movement
+Mitigation: Remove bpftrace from container image or use a minimal base image
+
+[MEDIUM] Network tool found: bpftool
+Description: Container contains network reconnaissance tool 'bpftool' which could be used for lateral movement
+Mitigation: Remove bpftool from container image or use a minimal base image
+
+[CRITICAL] Potential cryptocurrency miner detected
+Description: Process matching crypto mining signature detected: xmrig
+Mitigation: Investigate and remove unauthorized processes

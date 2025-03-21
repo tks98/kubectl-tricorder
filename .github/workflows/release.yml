@@ -34,7 +34,7 @@ jobs:
 
       - name: Build for Linux amd64
         run: |
-          GOOS=linux GOARCH=amd64 go build -o kubectl-tricorder .
+          GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X main.Version=${{ env.VERSION }}" -o kubectl-tricorder .
           mkdir -p release/linux_amd64
           cp kubectl-tricorder LICENSE release/linux_amd64/
           cd release/linux_amd64
@@ -44,7 +44,7 @@ jobs:
 
       - name: Build for macOS amd64
         run: |
-          GOOS=darwin GOARCH=amd64 go build -o kubectl-tricorder .
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-w -s -X main.Version=${{ env.VERSION }}" -o kubectl-tricorder .
           mkdir -p release/darwin_amd64
           cp kubectl-tricorder LICENSE release/darwin_amd64/
           cd release/darwin_amd64
@@ -54,7 +54,7 @@ jobs:
 
       - name: Build for macOS arm64
         run: |
-          GOOS=darwin GOARCH=arm64 go build -o kubectl-tricorder .
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-w -s -X main.Version=${{ env.VERSION }}" -o kubectl-tricorder .
           mkdir -p release/darwin_arm64
           cp kubectl-tricorder LICENSE release/darwin_arm64/
           cd release/darwin_arm64
