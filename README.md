@@ -1,5 +1,5 @@
 # kubectl-tricorder
-A kubectl plugin that helps identify security risks in your Kubernetes pods by examining container configurations, privileges, and potential escape vectors.
+A kubectl plugin that helps identify security risks in your Kubernetes pods by examining container configurations, privileges, and potential escape vectors. Named after the handheld [tricorder](https://en.wikipedia.org/wiki/Tricorder) device from Star Trek.
 
 > "I'm a scanner, not a miracle worker!"
 
