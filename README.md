@@ -111,7 +111,7 @@ The easiest way to install kubectl-tricorder is via [Krew](https://krew.sigs.k8s
 # See https://krew.sigs.k8s.io/docs/user-guide/setup/install/
 
 # Then install tricorder plugin
-kubectl krew install tricorder
+kubectl krew install --manifest-url https://github.com/tks98/kubectl-tricorder/releases/download/vX.Y.Z/kubectl-tricorder.yaml
 ```
 
 ### Manual Download
@@ -156,3 +156,48 @@ kubectl tricorder --help
 ```
 
 You should see the command help output with all available options.
+
+## Test Examples
+
+The repository includes files to help you understand container security risks and see how kubectl-tricorder works:
+
+### Test Pod Configuration
+
+A deliberately insecure test pod configuration is provided in `test/test-pod.yaml`. This file contains numerous security issues including:
+
+- Privileged container settings
+- Excessive capabilities (SYS_ADMIN, NET_ADMIN, etc.)
+- Sensitive host path mounts
+- Cloud provider credentials in environment variables
+- Exposed sensitive information in ConfigMaps
+- Excessive RBAC permissions
+- eBPF access risks
+- Cryptocurrency mining simulation
+
+You can use this file to safely test kubectl-tricorder in a lab environment:
+
+```bash
+# Apply the test configuration (do NOT use in production clusters)
+kubectl apply -f test/test-pod.yaml
+
+# Scan the test pod
+kubectl tricorder -n default -p security-test-pod-insecure
+```
+
+### Example Output
+
+An example of kubectl-tricorder's output when scanning the test pod is provided in `test/example-output.txt`. This shows:
+
+- Critical, high, medium, and low-risk findings
+- Detailed descriptions of each security issue
+- Recommended mitigations for each finding
+- Detection of cloud credentials, sensitive data, and risky configurations
+- Identification of container escape vectors
+
+These files are valuable for:
+- Security training and education
+- Testing your security scanning tools
+- Understanding container security risks
+- Demonstrating the capabilities of kubectl-tricorder
+
+**WARNING:** The test pod configuration contains deliberate security risks and should only be deployed in isolated test environments, never in production clusters.
