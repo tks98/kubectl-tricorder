@@ -7,9 +7,7 @@ spec:
   homepage: https://github.com/tks98/kubectl-tricorder
   shortDescription: Container security scanner for pods
   description: |
-    kubectl-tricorder is a security tool for scanning containers within pods 
-    in a Kubernetes cluster. It can detect security issues and vulnerabilities,
-    and provide detailed reports.
+    kubectl-tricorder is a security scanner for Kubernetes that detects container vulnerabilities, privileges risks, and escape vectors in your pods.
   platforms:
   - selector:
       matchLabels:

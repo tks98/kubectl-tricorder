@@ -1,5 +1,5 @@
 # kubectl-tricorder
-A kubectl plugin for scanning and analyzing Kubernetes container security posture. Like a Star Trek tricorder for your clusters - identifies vulnerabilities, capability issues, and escape vectors in your pods.
+A kubectl plugin that detects container vulnerabilities, privileges risks, and escape vectors in your pods.
 
 ## Features
 
@@ -102,19 +102,57 @@ Kubectl-tricorder performs various security checks including:
 
 ## Installation
 
-Download the latest release binary and place it in your PATH:
+### Using Krew (Recommended)
+
+The easiest way to install kubectl-tricorder is via [Krew](https://krew.sigs.k8s.io/), the kubectl plugin manager:
 
 ```bash
-curl -L https://github.com/yourusername/kubectl-tricorder/releases/latest/download/kubectl-tricorder -o kubectl-tricorder
+# First install Krew if you don't have it
+# See https://krew.sigs.k8s.io/docs/user-guide/setup/install/
+
+# Then install tricorder plugin
+kubectl krew install tricorder
+```
+
+### Manual Download
+
+You can download pre-built binaries for your platform:
+
+```bash
+# For Linux (x86_64)
+curl -L https://github.com/tks98/kubectl-tricorder/releases/latest/download/kubectl-tricorder_vX.Y.Z_linux_amd64.tar.gz -o kubectl-tricorder.tar.gz
+
+# For macOS (Intel)
+curl -L https://github.com/tks98/kubectl-tricorder/releases/latest/download/kubectl-tricorder_vX.Y.Z_darwin_amd64.tar.gz -o kubectl-tricorder.tar.gz
+
+# For macOS (Apple Silicon)
+curl -L https://github.com/tks98/kubectl-tricorder/releases/latest/download/kubectl-tricorder_vX.Y.Z_darwin_arm64.tar.gz -o kubectl-tricorder.tar.gz
+
+# Then for any platform
+tar -xzf kubectl-tricorder.tar.gz
 chmod +x kubectl-tricorder
 sudo mv kubectl-tricorder /usr/local/bin/
 ```
 
-Or build from source:
+Replace `vX.Y.Z` with the specific version you want to install, like `v0.1.0`.
+
+### Build from Source
+
+If you prefer to build from source:
 
 ```bash
-git clone https://github.com/yourusername/kubectl-tricorder.git
+git clone https://github.com/tks98/kubectl-tricorder.git
 cd kubectl-tricorder
 go build -o kubectl-tricorder
 sudo mv kubectl-tricorder /usr/local/bin/
 ```
+
+### Verify Installation
+
+To verify the installation:
+
+```bash
+kubectl tricorder --help
+```
+
+You should see the command help output with all available options.
