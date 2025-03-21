@@ -1,13 +1,17 @@
 # Binary name for the kubectl plugin
 BINARY_NAME=kubectl-tricorder
 
+# Version information
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
 # Go related variables
 GOBASE=$(shell pwd)
 GOBIN=$(GOBASE)/bin
 GOFILES=$(wildcard *.go)
 
 # Build flags
-LDFLAGS=-ldflags "-w -s"
+LDFLAGS=-ldflags "-w -s -X main.Version=$(VERSION)"
 
 # Platform specific variables
 UNAME_S:=$(shell uname -s)
