@@ -1,45 +1,35 @@
 # kubectl-tricorder
-A kubectl plugin that detects container vulnerabilities, privileges risks, and escape vectors in your pods.
+A kubectl plugin that helps identify security risks in your Kubernetes pods by examining container configurations, privileges, and potential escape vectors.
 
 ## Features
 
-- Identifies security vulnerabilities in running containers
-- Detects potential container escape vectors
-- Checks for excessive privileges and capabilities
-- Identifies sensitive mounts and paths
-- Reports on RBAC permissions and service account issues
-- Customizable security checks through configuration files
-- Detects eBPF security risks and access vectors
+- Detects container security issues including privilege escalations and escape vectors
+- Examines mounted volumes, capabilities, and security contexts
+- Analyzes RBAC permissions and service account configurations
+- Identifies sensitive data exposure and risky configurations
+- Detects specialized threats like eBPF security risks
+- Allows customization via configuration files
 
 ## How It Works
 
-kubectl-tricorder works by connecting to your Kubernetes cluster and analyzing the runtime configuration of specified pods. It performs non-intrusive inspection of container settings, examining:
+kubectl-tricorder connects to your Kubernetes cluster and analyzes pod configurations through a combination of API queries and container inspection commands.
 
-- Container security contexts and privilege settings
-- Mounted volumes and filesystem access
-- Environment variables and sensitive data exposure
-- Linux capabilities and security profiles
-- Resource access and potential escape vectors
-- RBAC permissions of associated service accounts
-- eBPF access and related security concerns
+The tool works in several phases:
 
-The tool leverages the Kubernetes API to gather configuration data and uses the exec API (similar to `kubectl exec`) to run diagnostic commands inside target containers. Specifically:
+1. **API Analysis**: Gathers pod specifications and configuration data from the Kubernetes API
+   
+2. **Container Inspection**: Executes diagnostic commands inside containers using the Kubernetes exec API to check:
+   - File permissions and sensitive paths
+   - Running processes
+   - Environment variables
+   - Capabilities and privilege settings
+   - System configurations
 
-1. **Initial API Analysis**: Tricorder first gathers pod specifications, security contexts, and configuration data from the Kubernetes API server.
+3. **Boundary Analysis**: Identifies potential container escape vectors by examining mount points, namespaces, and host access
 
-2. **Container Inspection**: For deeper analysis, the tool executes non-destructive commands inside the target container using the Kubernetes exec API, including:
-   - File permission checks on sensitive paths
-   - Process enumeration to detect risky applications
-   - Environment variable inspection
-   - Capability and privilege detection
-   - Kernel module and syscall inspection
-   - Network configuration analysis
+4. **RBAC Evaluation**: Analyzes service account permissions available to the container
 
-3. **Host Context Awareness**: By examining mount points and namespaces, tricorder can identify where container boundaries might be compromised without actually exploiting these vectors.
-
-4. **RBAC Analysis**: Service account tokens are analyzed to determine what permissions are available to the container.
-
-All inspections are performed using read-only operations that don't modify container state, ensuring safety even in production environments. The tool requires the same level of access as running `kubectl exec` on the target pods.
+While the tool uses non-destructive read-only operations, **exercise caution in production environments**. The commands executed through the Kubernetes exec API could potentially impact sensitive applications or add load to production workloads. Consider testing in staging environments first or limiting scans to non-critical pods during maintenance windows.
 
 ## Usage
 
@@ -64,77 +54,51 @@ You can customize the security checks by providing a YAML configuration file:
 kubectl tricorder -n monitoring -p prometheus-server --config custom-checks.yaml
 ```
 
-The configuration file allows you to define:
-- Custom sensitive paths and mounts to check
-- Critical paths that shouldn't be writable
-- Suspicious commands to look for
-- Regex patterns for sensitive data
-- Customized risk levels for different findings
-- Dangerous Linux capabilities
-- eBPF access risks to detect
-
-See [config-example.yaml](config-example.yaml) for a complete example of the configuration format.
+The configuration file allows you to define custom security checks including sensitive paths, critical files, suspicious processes, and more. See [config-example.yaml](config-example.yaml) for a complete example.
 
 ### Configuration Options
 
 | Section | Description |
 |---------|-------------|
-| `sensitiveMounts` | Paths that are dangerous when mounted from host, including eBPF filesystems |
+| `sensitiveMounts` | Paths that are dangerous when mounted from host |
 | `criticalPaths` | System paths that shouldn't be writable |
-| `suspiciousCommands` | Binaries that shouldn't be in containers, including eBPF tools |
+| `suspiciousCommands` | Binaries that shouldn't be in containers |
 | `minerProcesses` | Cryptocurrency mining process patterns |
 | `cloudCredentialEnvVars` | Environment variable patterns for cloud credentials |
-| `dangerousCapabilities` | Linux capabilities with assigned risk levels, including eBPF capabilities |
+| `dangerousCapabilities` | Linux capabilities with assigned risk levels |
 | `dangerousPermissions` | RBAC permissions with assigned risk levels |
 | `sensitivePatterns` | Regex patterns for identifying sensitive data |
 
-## Example
-
-```bash
-# Scan a specific container and output to a file
-kubectl tricorder -n production -p web-server -c app -o results.json
-
-# Scan all containers in a pod with custom checks
-kubectl tricorder -n database -p postgres --all-containers --config db-checks.yaml
-```
-
 ## Security Checks
 
-Kubectl-tricorder performs various security checks including:
+kubectl-tricorder examines numerous security aspects including:
 
 ### Container Security
-- Privileged container detection
-- Root user usage
-- Writable critical filesystems
-- Sensitive environment variables
+- Privileged containers and root usage
+- Critical filesystem permissions
+- Sensitive data exposure
 - Excessive capabilities
 
 ### Kubernetes Configuration
-- RBAC permission analysis
-- Service account token mounts
-- Network policy enforcement
-- Excessive hostPath mounts
-- Privileged pod settings
+- RBAC permissions
+- Service account tokens
+- Network policies
+- hostPath mounts
 
 ### Escape Vectors
 - Docker socket access
-- Host namespace usage (PID, Network, IPC)
+- Host namespace usage
 - Sensitive mount points
-- Kernel module loading
-- cgroup manipulation
+- Kernel module access
 
 ### eBPF Security
-- CAP_BPF capability detection
-- BPF filesystem access
-- BPF syscall restrictions
-- eBPF program presence detection
-- eBPF tools presence
+- BPF capability and filesystem access
+- Syscall restrictions
+- eBPF tools and programs
 
 ## Installation
 
 ### Using Krew (Recommended)
-
-The easiest way to install kubectl-tricorder is via [Krew](https://krew.sigs.k8s.io/), the kubectl plugin manager:
 
 ```bash
 # First install Krew if you don't have it
@@ -146,7 +110,7 @@ kubectl krew install --manifest-url https://github.com/tks98/kubectl-tricorder/r
 
 ### Manual Download
 
-You can download pre-built binaries for your platform:
+Download pre-built binaries for your platform:
 
 ```bash
 # For Linux (x86_64)
@@ -158,7 +122,7 @@ curl -L https://github.com/tks98/kubectl-tricorder/releases/latest/download/kube
 # For macOS (Apple Silicon)
 curl -L https://github.com/tks98/kubectl-tricorder/releases/latest/download/kubectl-tricorder_vX.Y.Z_darwin_arm64.tar.gz -o kubectl-tricorder.tar.gz
 
-# Then for any platform
+# Extract and install
 tar -xzf kubectl-tricorder.tar.gz
 chmod +x kubectl-tricorder
 sudo mv kubectl-tricorder /usr/local/bin/
@@ -168,8 +132,6 @@ Replace `vX.Y.Z` with the specific version you want to install, like `v0.1.0`.
 
 ### Build from Source
 
-If you prefer to build from source:
-
 ```bash
 git clone https://github.com/tks98/kubectl-tricorder.git
 cd kubectl-tricorder
@@ -177,34 +139,11 @@ go build -o kubectl-tricorder
 sudo mv kubectl-tricorder /usr/local/bin/
 ```
 
-### Verify Installation
+Verify the installation with `kubectl tricorder --help`
 
-To verify the installation:
+## Testing and Examples
 
-```bash
-kubectl tricorder --help
-```
-
-You should see the command help output with all available options.
-
-## Test Examples
-
-The repository includes files to help you understand container security risks and see how kubectl-tricorder works:
-
-### Test Pod Configuration
-
-A deliberately insecure test pod configuration is provided in `test/test-pod.yaml`. This file contains numerous security issues including:
-
-- Privileged container settings
-- Excessive capabilities (SYS_ADMIN, NET_ADMIN, etc.)
-- Sensitive host path mounts
-- Cloud provider credentials in environment variables
-- Exposed sensitive information in ConfigMaps
-- Excessive RBAC permissions
-- eBPF access risks
-- Cryptocurrency mining simulation
-
-You can use this file to safely test kubectl-tricorder in a lab environment:
+We provide a deliberately insecure test pod configuration in `test/test-pod.yaml` to help you understand container security risks and see how kubectl-tricorder works. This pod contains numerous security issues including privileged settings, excessive capabilities, sensitive mounts, and more.
 
 ```bash
 # Apply the test configuration (do NOT use in production clusters)
@@ -214,20 +153,6 @@ kubectl apply -f test/test-pod.yaml
 kubectl tricorder -n default -p security-test-pod-insecure
 ```
 
-### Example Output
+Check `test/example-output.txt` to see sample results that highlight various security issues and recommended mitigations.
 
-An example of kubectl-tricorder's output when scanning the test pod is provided in `test/example-output.txt`. This shows:
-
-- Critical, high, medium, and low-risk findings
-- Detailed descriptions of each security issue
-- Recommended mitigations for each finding
-- Detection of cloud credentials, sensitive data, and risky configurations
-- Identification of container escape vectors
-
-These files are valuable for:
-- Security training and education
-- Testing your security scanning tools
-- Understanding container security risks
-- Demonstrating the capabilities of kubectl-tricorder
-
-**WARNING:** The test pod configuration contains deliberate security risks and should only be deployed in isolated test environments, never in production clusters.
+**WARNING:** The test pod contains deliberate security risks and should only be deployed in isolated test environments.
