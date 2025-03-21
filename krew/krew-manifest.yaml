@@ -1,0 +1,49 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: tricorder
+spec:
+  version: "{{ .TagName }}"
+  homepage: https://github.com/tks98/kubectl-tricorder
+  shortDescription: Container security scanner for pods
+  description: |
+    kubectl-tricorder is a security tool for scanning containers within pods 
+    in a Kubernetes cluster. It can detect security issues and vulnerabilities,
+    and provide detailed reports.
+  platforms:
+  - selector:
+      matchLabels:
+        os: linux
+        arch: amd64
+    uri: https://github.com/tks98/kubectl-tricorder/releases/download/{{ .TagName }}/kubectl-tricorder_{{ .TagName }}_linux_amd64.tar.gz
+    sha256: "{{ .LinuxSha256 }}"
+    bin: kubectl-tricorder
+    files:
+    - from: kubectl-tricorder
+      to: .
+    - from: LICENSE
+      to: .
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: amd64
+    uri: https://github.com/tks98/kubectl-tricorder/releases/download/{{ .TagName }}/kubectl-tricorder_{{ .TagName }}_darwin_amd64.tar.gz
+    sha256: "{{ .DarwinSha256 }}"
+    bin: kubectl-tricorder
+    files:
+    - from: kubectl-tricorder
+      to: .
+    - from: LICENSE
+      to: .
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: arm64
+    uri: https://github.com/tks98/kubectl-tricorder/releases/download/{{ .TagName }}/kubectl-tricorder_{{ .TagName }}_darwin_arm64.tar.gz
+    sha256: "{{ .DarwinArmSha256 }}"
+    bin: kubectl-tricorder
+    files:
+    - from: kubectl-tricorder
+      to: .
+    - from: LICENSE
+      to: . 

@@ -1,0 +1,38 @@
+name: PR Build Verification
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+jobs:
+  build:
+    name: Verify Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.19'
+
+      - name: Build for Linux amd64
+        run: GOOS=linux GOARCH=amd64 go build -o kubectl-tricorder-linux-amd64 .
+
+      - name: Build for macOS amd64
+        run: GOOS=darwin GOARCH=amd64 go build -o kubectl-tricorder-darwin-amd64 .
+
+      - name: Build for macOS arm64
+        run: GOOS=darwin GOARCH=arm64 go build -o kubectl-tricorder-darwin-arm64 .
+        
+      - name: Verify binaries
+        run: |
+          echo "Verifying binary sizes..."
+          ls -lh kubectl-tricorder-*
+          echo "All builds completed successfully" 

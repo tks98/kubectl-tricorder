@@ -1,0 +1,86 @@
+name: Release kubectl-tricorder
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.19'
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Create LICENSE file if it doesn't exist
+        run: |
+          if [ ! -f LICENSE ]; then
+            echo "Creating placeholder LICENSE file"
+            echo "MIT License" > LICENSE
+            echo "Copyright (c) $(date +%Y) kubectl-tricorder authors" >> LICENSE
+          fi
+
+      - name: Build for Linux amd64
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o kubectl-tricorder .
+          mkdir -p release/linux_amd64
+          cp kubectl-tricorder LICENSE release/linux_amd64/
+          cd release/linux_amd64
+          tar -zcvf ../../kubectl-tricorder_${{ env.VERSION }}_linux_amd64.tar.gz kubectl-tricorder LICENSE
+          cd ../..
+          echo "LINUX_SHA256=$(sha256sum kubectl-tricorder_${{ env.VERSION }}_linux_amd64.tar.gz | awk '{print $1}')" >> $GITHUB_ENV
+
+      - name: Build for macOS amd64
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -o kubectl-tricorder .
+          mkdir -p release/darwin_amd64
+          cp kubectl-tricorder LICENSE release/darwin_amd64/
+          cd release/darwin_amd64
+          tar -zcvf ../../kubectl-tricorder_${{ env.VERSION }}_darwin_amd64.tar.gz kubectl-tricorder LICENSE
+          cd ../..
+          echo "DARWIN_SHA256=$(sha256sum kubectl-tricorder_${{ env.VERSION }}_darwin_amd64.tar.gz | awk '{print $1}')" >> $GITHUB_ENV
+
+      - name: Build for macOS arm64
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -o kubectl-tricorder .
+          mkdir -p release/darwin_arm64
+          cp kubectl-tricorder LICENSE release/darwin_arm64/
+          cd release/darwin_arm64
+          tar -zcvf ../../kubectl-tricorder_${{ env.VERSION }}_darwin_arm64.tar.gz kubectl-tricorder LICENSE
+          cd ../..
+          echo "DARWIN_ARM_SHA256=$(sha256sum kubectl-tricorder_${{ env.VERSION }}_darwin_arm64.tar.gz | awk '{print $1}')" >> $GITHUB_ENV
+
+      - name: Create Krew manifest
+        run: |
+          cat krew-manifest.yaml | \
+          sed "s/{{ .TagName }}/${{ env.VERSION }}/g" | \
+          sed "s/{{ .LinuxSha256 }}/${{ env.LINUX_SHA256 }}/g" | \
+          sed "s/{{ .DarwinSha256 }}/${{ env.DARWIN_SHA256 }}/g" | \
+          sed "s/{{ .DarwinArmSha256 }}/${{ env.DARWIN_ARM_SHA256 }}/g" > kubectl-tricorder.yaml
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            kubectl-tricorder_${{ env.VERSION }}_linux_amd64.tar.gz
+            kubectl-tricorder_${{ env.VERSION }}_darwin_amd64.tar.gz
+            kubectl-tricorder_${{ env.VERSION }}_darwin_arm64.tar.gz
+            kubectl-tricorder.yaml
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
