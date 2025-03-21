@@ -15,6 +15,8 @@ import (
 
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -31,6 +33,131 @@ const (
 	RISK_HIGH     = "HIGH"
 	RISK_CRITICAL = "CRITICAL"
 )
+
+// Configuration holds all customizable settings for security checks
+type Configuration struct {
+	SensitiveMounts        []string          `yaml:"sensitiveMounts"`
+	CriticalPaths          []string          `yaml:"criticalPaths"`
+	SuspiciousCommands     []string          `yaml:"suspiciousCommands"`
+	MinerProcesses         []string          `yaml:"minerProcesses"`
+	CloudCredentialEnvVars []string          `yaml:"cloudCredentialEnvVars"`
+	DangerousCapabilities  map[string]string `yaml:"dangerousCapabilities"` // capability name -> risk level
+	DangerousPermissions   []RBACPermission  `yaml:"dangerousPermissions"`
+	SensitivePatterns      map[string]string `yaml:"sensitivePatterns"` // pattern name -> regex
+}
+
+// RBACPermission defines a dangerous RBAC permission to check for
+type RBACPermission struct {
+	Resource string `yaml:"resource"`
+	Verb     string `yaml:"verb"`
+	Risk     string `yaml:"risk"`
+}
+
+// DefaultConfig returns the default configuration
+func DefaultConfig() Configuration {
+	return Configuration{
+		SensitiveMounts: []string{
+			"/proc", "/sys", "/var/run/docker.sock", "/etc/shadow",
+			"/root", "/var/lib/docker", "/var/run",
+			"/etc/kubernetes", "/boot", "/dev", "/var/lib/kubelet", "/run/secrets",
+		},
+		CriticalPaths: []string{
+			"/etc/", "/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/", "/lib/", "/lib64/",
+			"/opt/app/", "/var/lib/", "/usr/local/bin/",
+		},
+		SuspiciousCommands: []string{
+			"nmap", "nc", "netcat", "tcpdump", "wget", "curl", "ssh", "scp",
+			"socat", "tshark", "hping", "masscan",
+		},
+		MinerProcesses: []string{
+			"xmrig", "cgminer", "cryptonight", "stratum+tcp", "minerd", "ethminer",
+			"monero", "cpuminer", "nicehash", "bminer",
+		},
+		CloudCredentialEnvVars: []string{
+			"AWS_ACCESS_KEY", "AWS_SECRET_KEY", "AWS_SECRET_ACCESS_KEY", "AZURE_CLIENT_ID",
+			"AZURE_TENANT_ID", "AZURE_CLIENT_SECRET", "GOOGLE_APPLICATION_CREDENTIALS",
+			"GOOGLE_CLOUD_PROJECT", "DO_AUTH_TOKEN", "DIGITALOCEAN_ACCESS_TOKEN",
+			"ALICLOUD_ACCESS_KEY", "IBM_CLOUD_API_KEY", "RACKSPACE_API_KEY",
+		},
+		DangerousCapabilities: map[string]string{
+			"CAP_CHOWN":        RISK_MEDIUM,
+			"CAP_DAC_OVERRIDE": RISK_HIGH,
+			"CAP_SETUID":       RISK_HIGH,
+			"CAP_SYS_ADMIN":    RISK_CRITICAL,
+			"CAP_NET_ADMIN":    RISK_HIGH,
+			"CAP_SYS_PTRACE":   RISK_HIGH,
+			"CAP_SYS_MODULE":   RISK_CRITICAL,
+			"CAP_SYS_BOOT":     RISK_HIGH,
+		},
+		DangerousPermissions: []RBACPermission{
+			{Resource: "pods", Verb: "create", Risk: RISK_HIGH},
+			{Resource: "pods", Verb: "delete", Risk: RISK_HIGH},
+			{Resource: "pods", Verb: "exec", Risk: RISK_HIGH},
+			{Resource: "pods", Verb: "attach", Risk: RISK_HIGH},
+			{Resource: "pods", Verb: "portforward", Risk: RISK_HIGH},
+			{Resource: "secrets", Verb: "get", Risk: RISK_HIGH},
+			{Resource: "secrets", Verb: "list", Risk: RISK_HIGH},
+			{Resource: "secrets", Verb: "create", Risk: RISK_HIGH},
+			{Resource: "deployments", Verb: "create", Risk: RISK_HIGH},
+			{Resource: "deployments", Verb: "delete", Risk: RISK_HIGH},
+			{Resource: "daemonsets", Verb: "create", Risk: RISK_HIGH},
+			{Resource: "clusterroles", Verb: "bind", Risk: RISK_HIGH},
+			{Resource: "clusterroles", Verb: "escalate", Risk: RISK_CRITICAL},
+			{Resource: "nodes", Verb: "get", Risk: RISK_HIGH},
+			{Resource: "nodes", Verb: "list", Risk: RISK_HIGH},
+		},
+		SensitivePatterns: map[string]string{
+			"AWS Key":             `(?i)(aws_access_key|aws_secret_key|aws_session_token)`,
+			"Password":            `(?i)(password|passwd|pass)`,
+			"API Key":             `(?i)(api[_-]?key|apikey|api[_-]?token|token)`,
+			"Certificate":         `(?i)(ssl|tls|cert|certificate|key)`,
+			"OAuth":               `(?i)(oauth|auth[_-]?token)`,
+			"Database":            `(?i)(database|db)[_-]?(password|passwd|pwd)`,
+			"Secret":              `(?i)secret`,
+			"Credentials":         `(?i)cred(ential)?s?`,
+			"API Token":           `(?i)(auth[_-]?token|access[_-]?token)`,
+			"Private Key":         `(?i)-----BEGIN(.*?)PRIVATE KEY-----`,
+			"SSH Key":             `(?i)(ssh-rsa|ssh-dss|ecdsa-sha2-nistp256)`,
+			"JWT":                 `(?i)[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+`,
+			"GitHub Token":        `(?i)ghp_[A-Za-z0-9]{36}`,
+			"GitLab Token":        `(?i)glpat-[A-Za-z0-9]{20,}`,
+			"Slack Token":         `(?i)xox[baprs]-[0-9]{12}-[0-9]{12}-[A-Za-z0-9]{24}`,
+			"Google API Key":      `(?i)AIza[0-9A-Za-z\\-_]{35}`,
+			"Stripe Secret":       `(?i)sk_(live|test)_[0-9a-zA-Z]{24}`,
+			"Heroku API Key":      `(?i)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`,
+			"PGP Private Key":     `(?i)-----BEGIN PGP PRIVATE KEY BLOCK-----`,
+			"OpenSSH Private Key": `(?i)-----BEGIN OPENSSH PRIVATE KEY-----`,
+		},
+	}
+}
+
+// LoadConfig loads configuration from file or returns defaults if file doesn't exist
+func LoadConfig(configPath string) (Configuration, error) {
+	config := DefaultConfig()
+
+	// If no config file specified, return defaults
+	if configPath == "" {
+		log.Info("No configuration file specified, using default configuration")
+		return config, nil
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Infof("No configuration file found at %s, using defaults", configPath)
+			return config, nil
+		}
+		return config, fmt.Errorf("error reading config file: %v", err)
+	}
+
+	log.Infof("Using custom configuration from %s", configPath)
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return config, fmt.Errorf("error parsing config file: %v", err)
+	}
+
+	return config, nil
+}
 
 type Finding struct {
 	Title       string `json:"title"`
@@ -62,10 +189,12 @@ type ContainerSecurityTester struct {
 	scanAllContainers        bool
 	podSecurityContext       *corev1.PodSecurityContext
 	containerSecurityContext *corev1.SecurityContext
+	cfg                      Configuration // Use this for all configurations
+	mutex                    sync.Mutex    // Mutex to protect concurrent access to findings and risks
 }
 
 // newSecurityTester creates and returns a ContainerSecurityTester using either in-cluster config or a kubeconfig file.
-func newSecurityTester(namespace, pod, container string, verbose bool) (*ContainerSecurityTester, error) {
+func newSecurityTester(namespace, pod, container string, verbose bool, cfg Configuration) (*ContainerSecurityTester, error) {
 	var kubeconfig string
 	var config *rest.Config
 	var err error
@@ -98,6 +227,7 @@ func newSecurityTester(namespace, pod, container string, verbose bool) (*Contain
 		findings:          []Finding{},
 		risks:             map[string]int{RISK_LOW: 0, RISK_MEDIUM: 0, RISK_HIGH: 0, RISK_CRITICAL: 0},
 		scanAllContainers: false,
+		cfg:               cfg,
 	}
 
 	// Fetch initial pod info to get security context
@@ -141,6 +271,9 @@ func (t *ContainerSecurityTester) log(message string) {
 
 // addFinding appends a security finding and updates risk counts.
 func (t *ContainerSecurityTester) addFinding(title, description, risk, mitigation string) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	finding := Finding{
 		Title:       title,
 		Description: description,
@@ -210,37 +343,93 @@ func (t *ContainerSecurityTester) checkContainerCapabilities() {
 				var caps int64
 				fmt.Sscanf(capsHex, "%x", &caps)
 
-				if caps&(1<<0) != 0 { // CAP_CHOWN
-					t.addFinding(
-						"CAP_CHOWN enabled",
-						"Container has CAP_CHOWN capability which allows changing file ownership",
-						RISK_MEDIUM,
-						"Remove CAP_CHOWN capability if not required",
-					)
+				// Map of capability bit position to name
+				capMap := map[int]string{
+					0:  "CAP_CHOWN",
+					1:  "CAP_DAC_OVERRIDE",
+					2:  "CAP_DAC_READ_SEARCH",
+					3:  "CAP_FOWNER",
+					4:  "CAP_FSETID",
+					5:  "CAP_KILL",
+					6:  "CAP_SETGID",
+					7:  "CAP_SETUID",
+					8:  "CAP_SETPCAP",
+					9:  "CAP_LINUX_IMMUTABLE",
+					10: "CAP_NET_BIND_SERVICE",
+					11: "CAP_NET_BROADCAST",
+					12: "CAP_NET_ADMIN",
+					13: "CAP_NET_RAW",
+					14: "CAP_IPC_LOCK",
+					15: "CAP_IPC_OWNER",
+					16: "CAP_SYS_MODULE",
+					17: "CAP_SYS_RAWIO",
+					18: "CAP_SYS_CHROOT",
+					19: "CAP_SYS_PTRACE",
+					20: "CAP_SYS_PACCT",
+					21: "CAP_SYS_ADMIN",
+					22: "CAP_SYS_BOOT",
+					23: "CAP_SYS_NICE",
+					24: "CAP_SYS_RESOURCE",
+					25: "CAP_SYS_TIME",
+					26: "CAP_SYS_TTY_CONFIG",
+					27: "CAP_MKNOD",
+					28: "CAP_LEASE",
+					29: "CAP_AUDIT_WRITE",
+					30: "CAP_AUDIT_CONTROL",
+					31: "CAP_SETFCAP",
+					32: "CAP_MAC_OVERRIDE",
+					33: "CAP_MAC_ADMIN",
+					34: "CAP_SYSLOG",
+					35: "CAP_WAKE_ALARM",
+					36: "CAP_BLOCK_SUSPEND",
+					37: "CAP_AUDIT_READ",
+					38: "CAP_PERFMON",
+					39: "CAP_BPF",
+					40: "CAP_CHECKPOINT_RESTORE",
 				}
-				if caps&(1<<2) != 0 { // CAP_DAC_OVERRIDE
-					t.addFinding(
-						"CAP_DAC_OVERRIDE enabled",
-						"Container can bypass file permission checks",
-						RISK_HIGH,
-						"Remove CAP_DAC_OVERRIDE capability if not required",
-					)
-				}
-				if caps&(1<<7) != 0 { // CAP_SETUID
-					t.addFinding(
-						"CAP_SETUID enabled",
-						"Container can perform arbitrary setuid calls",
-						RISK_HIGH,
-						"Remove CAP_SETUID capability if not required",
-					)
-				}
-				if caps&(1<<21) != 0 { // CAP_SYS_ADMIN
-					t.addFinding(
-						"CAP_SYS_ADMIN enabled",
-						"Container has administrative capabilities that may allow container escape",
-						RISK_CRITICAL,
-						"Remove CAP_SYS_ADMIN capability",
-					)
+
+				// Check each bit up to the highest known capability
+				for bit := 0; bit <= 40; bit++ {
+					if caps&(1<<bit) != 0 {
+						capName := capMap[bit]
+						if risk, exists := t.cfg.DangerousCapabilities[capName]; exists {
+							var description, mitigation string
+
+							switch capName {
+							case "CAP_CHOWN":
+								description = "Container has CAP_CHOWN capability which allows changing file ownership"
+								mitigation = "Remove CAP_CHOWN capability if not required"
+							case "CAP_DAC_OVERRIDE":
+								description = "Container can bypass file permission checks"
+								mitigation = "Remove CAP_DAC_OVERRIDE capability if not required"
+							case "CAP_SETUID":
+								description = "Container can perform arbitrary setuid calls"
+								mitigation = "Remove CAP_SETUID capability if not required"
+							case "CAP_SYS_ADMIN":
+								description = "Container has administrative capabilities that may allow container escape"
+								mitigation = "Remove CAP_SYS_ADMIN capability"
+							case "CAP_NET_ADMIN":
+								description = "Container can modify network settings and interfaces"
+								mitigation = "Remove CAP_NET_ADMIN capability if not required"
+							case "CAP_SYS_MODULE":
+								description = "Container can load kernel modules"
+								mitigation = "Remove CAP_SYS_MODULE capability"
+							case "CAP_SYS_PTRACE":
+								description = "Container can use ptrace to inspect processes"
+								mitigation = "Remove CAP_SYS_PTRACE capability"
+							default:
+								description = fmt.Sprintf("Container has %s capability which may be dangerous", capName)
+								mitigation = fmt.Sprintf("Remove %s capability if not required", capName)
+							}
+
+							t.addFinding(
+								fmt.Sprintf("%s enabled", capName),
+								description,
+								risk,
+								mitigation,
+							)
+						}
+					}
 				}
 			}
 		}
@@ -256,25 +445,145 @@ func (t *ContainerSecurityTester) checkSensitiveMounts() {
 		return
 	}
 
-	sensitivePathPrefixes := []string{
-		"/proc", "/sys", "/var/run/docker.sock", "/etc/shadow",
-		"/root", "/var/lib/docker", "/var/run",
-	}
+	// Map to track sensitive paths by parent directory
+	sensitivePathsByParent := make(map[string][]string)
+
 	lines := strings.Split(stdout, "\n")
 	for _, line := range lines {
 		parts := strings.Fields(line)
 		if len(parts) >= 2 {
 			mountPoint := parts[1]
-			for _, sensitive := range sensitivePathPrefixes {
+			for _, sensitive := range t.cfg.SensitiveMounts {
 				if mountPoint == sensitive || strings.HasPrefix(mountPoint, sensitive+"/") {
+					// Group by the sensitive parent path
+					sensitivePathsByParent[sensitive] = append(sensitivePathsByParent[sensitive], mountPoint)
+					break // Found a match, no need to check other sensitive paths
+				}
+			}
+		}
+	}
+
+	// Define patterns for paths that should be consolidated
+	pathPatterns := map[string]*regexp.Regexp{
+		"Docker overlay":    regexp.MustCompile(`/var/lib/docker/overlay2/[0-9a-f]{64}/merged`),
+		"Docker container":  regexp.MustCompile(`/var/lib/docker/containers/[0-9a-f]{64}/.*`),
+		"Docker volume":     regexp.MustCompile(`/var/lib/docker/volumes/[0-9a-f]{64}.*`),
+		"Kubernetes volume": regexp.MustCompile(`/var/lib/kubelet/pods/[0-9a-f-]{36}/volumes/.*`),
+		"Container ID path": regexp.MustCompile(`.*/[0-9a-f]{32,}/.*`),
+		"UUID path":         regexp.MustCompile(`.*/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.*`),
+	}
+
+	// Process each sensitive parent directory
+	for sensitive, paths := range sensitivePathsByParent {
+		// Map to store grouped paths by pattern
+		groupedPaths := make(map[string][]string)
+		ungroupedPaths := []string{}
+
+		// First attempt to group paths by known patterns
+		for _, path := range paths {
+			matched := false
+			for patternName, pattern := range pathPatterns {
+				if pattern.MatchString(path) {
+					groupedPaths[patternName] = append(groupedPaths[patternName], path)
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				ungroupedPaths = append(ungroupedPaths, path)
+			}
+		}
+
+		// Process grouped paths
+		for patternName, matchedPaths := range groupedPaths {
+			if len(matchedPaths) > 3 {
+				// Report as a group if we have many paths of the same pattern
+				t.addFinding(
+					fmt.Sprintf("Multiple %s paths mounted", patternName),
+					fmt.Sprintf("Container has access to %d %s paths which may allow container escape",
+						len(matchedPaths), patternName),
+					RISK_CRITICAL,
+					fmt.Sprintf("Remove mounts for %s paths", patternName),
+				)
+
+				// Log a few examples at verbose level
+				examples := matchedPaths
+				if len(examples) > 3 {
+					examples = examples[:3]
+				}
+				t.log(fmt.Sprintf("Examples of %s paths: %s, and %d more",
+					patternName, strings.Join(examples, ", "), len(matchedPaths)-len(examples)))
+			} else {
+				// Report individual paths if only a few
+				for _, path := range matchedPaths {
 					t.addFinding(
-						fmt.Sprintf("Sensitive path mounted: %s", mountPoint),
-						fmt.Sprintf("Container has access to sensitive host path %s which may allow container escape", mountPoint),
+						fmt.Sprintf("%s path mounted: %s", patternName, path),
+						fmt.Sprintf("Container has access to %s path which may allow container escape", patternName),
 						RISK_CRITICAL,
-						fmt.Sprintf("Remove mount for %s", mountPoint),
+						fmt.Sprintf("Remove mount for %s", path),
 					)
 				}
 			}
+		}
+
+		// Process remaining ungrouped paths
+		// Further consolidate paths with common prefixes if they're too numerous
+		if len(ungroupedPaths) > 10 {
+			// Group by common path prefixes (first 3 components)
+			prefixGroups := make(map[string][]string)
+			for _, path := range ungroupedPaths {
+				parts := strings.Split(path, "/")
+				prefix := ""
+				// Use at most first 3 path components for grouping
+				depth := min(4, len(parts))
+				if depth > 0 {
+					prefix = strings.Join(parts[:depth], "/")
+				}
+				prefixGroups[prefix] = append(prefixGroups[prefix], path)
+			}
+
+			// Report each prefix group
+			for prefix, prefixPaths := range prefixGroups {
+				if len(prefixPaths) > 3 {
+					t.addFinding(
+						fmt.Sprintf("Multiple sensitive paths under %s", prefix),
+						fmt.Sprintf("Container has access to %d sensitive paths under %s which may allow container escape",
+							len(prefixPaths), prefix),
+						RISK_CRITICAL,
+						fmt.Sprintf("Remove mounts for paths under %s", prefix),
+					)
+					t.log(fmt.Sprintf("First few paths: %s, and %d more",
+						strings.Join(prefixPaths[:min(3, len(prefixPaths))], ", "), len(prefixPaths)-min(3, len(prefixPaths))))
+				} else {
+					// Just report the individual paths if only a few
+					for _, path := range prefixPaths {
+						t.addFinding(
+							fmt.Sprintf("Sensitive path mounted: %s", path),
+							fmt.Sprintf("Container has access to sensitive host path %s which may allow container escape", path),
+							RISK_CRITICAL,
+							fmt.Sprintf("Remove mount for %s", path),
+						)
+					}
+				}
+			}
+		} else if len(ungroupedPaths) > 1 {
+			// Handle case where there are multiple paths but not too many
+			t.addFinding(
+				fmt.Sprintf("Multiple sensitive paths under %s", sensitive),
+				fmt.Sprintf("Container has access to %d sensitive paths under %s which may allow container escape",
+					len(ungroupedPaths), sensitive),
+				RISK_CRITICAL,
+				fmt.Sprintf("Remove mounts for paths under %s", sensitive),
+			)
+			t.log(fmt.Sprintf("Sensitive paths under %s: %s", sensitive, strings.Join(ungroupedPaths, ", ")))
+		} else if len(ungroupedPaths) == 1 {
+			// Single path case
+			t.addFinding(
+				fmt.Sprintf("Sensitive path mounted: %s", ungroupedPaths[0]),
+				fmt.Sprintf("Container has access to sensitive host path %s which may allow container escape", ungroupedPaths[0]),
+				RISK_CRITICAL,
+				fmt.Sprintf("Remove mount for %s", ungroupedPaths[0]),
+			)
 		}
 	}
 
@@ -288,6 +597,14 @@ func (t *ContainerSecurityTester) checkSensitiveMounts() {
 			"Remove the Docker socket mount from the container",
 		)
 	}
+}
+
+// min returns the smaller of x or y.
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
 }
 
 // checkPrivilegedMode verifies if the container runs with elevated privileges.
@@ -547,16 +864,10 @@ func (t *ContainerSecurityTester) checkSecretsInEnvVars() {
 		return
 	}
 
-	// Patterns to detect potential secrets
-	sensitivePatterns := map[string]*regexp.Regexp{
-		"AWS Key":     regexp.MustCompile(`(?i)(aws_access_key|aws_secret_key|aws_session_token)`),
-		"Password":    regexp.MustCompile(`(?i)(password|passwd|pass)`),
-		"API Key":     regexp.MustCompile(`(?i)(api[_-]?key|apikey|api[_-]?token|token)`),
-		"Certificate": regexp.MustCompile(`(?i)(ssl|tls|cert|certificate|key)`),
-		"OAuth":       regexp.MustCompile(`(?i)(oauth|auth[_-]?token)`),
-		"Database":    regexp.MustCompile(`(?i)(database|db)[_-]?(password|passwd|pwd)`),
-		"Secret":      regexp.MustCompile(`(?i)secret`),
-		"Credentials": regexp.MustCompile(`(?i)cred(ential)?s?`),
+	// Compile all patterns
+	sensitivePatterns := make(map[string]*regexp.Regexp)
+	for patternName, patternStr := range t.cfg.SensitivePatterns {
+		sensitivePatterns[patternName] = regexp.MustCompile(patternStr)
 	}
 
 	// Check environment variables
@@ -607,6 +918,202 @@ func (t *ContainerSecurityTester) checkSecretsInEnvVars() {
 	}
 }
 
+// checkSUIDBindaries checks for SUID binaries that could be used for privilege escalation
+func (t *ContainerSecurityTester) checkSUIDBindaries() {
+	t.log("Checking for SUID binaries...")
+	stdout, _, err := t.execInContainerWithTimeout([]string{"find", "/", "-perm", "-4000", "-type", "f", "-exec", "ls", "-la", "{}", "\\;", "2>/dev/null"}, 30*time.Second)
+	if err == nil && stdout != "" {
+		t.addFinding(
+			"SUID binaries found",
+			fmt.Sprintf("Container contains SUID binaries which could be used for privilege escalation: %s", stdout),
+			RISK_HIGH,
+			"Remove unnecessary SUID binaries or use a distroless container image",
+		)
+	}
+}
+
+// checkCloudCredentials checks for cloud provider credentials in the environment
+func (t *ContainerSecurityTester) checkCloudCredentials() {
+	t.log("Checking for cloud provider credentials...")
+
+	stdout, _, _ := t.execInContainerWithTimeout([]string{"printenv"}, 5*time.Second)
+	for _, pattern := range t.cfg.CloudCredentialEnvVars {
+		if strings.Contains(stdout, pattern) {
+			t.addFinding(
+				"Cloud provider credentials found",
+				fmt.Sprintf("Container has access to cloud credentials matching pattern: %s", pattern),
+				RISK_CRITICAL,
+				"Remove cloud credentials from container environment and use a secret store",
+			)
+		}
+	}
+}
+
+// checkNetworkPolicies checks if network policies exist for the namespace
+func (t *ContainerSecurityTester) checkNetworkPolicies() {
+	t.log("Checking for network policies...")
+
+	// Check if network policies exist for this namespace
+	policies, err := t.clientset.NetworkingV1().NetworkPolicies(t.namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		t.log(fmt.Sprintf("Error checking network policies: %v", err))
+		return
+	}
+
+	if len(policies.Items) == 0 {
+		t.addFinding(
+			"No network policies in namespace",
+			"No Kubernetes NetworkPolicies found in this namespace, allowing unrestricted pod communication",
+			RISK_HIGH,
+			"Implement NetworkPolicies to restrict pod-to-pod communication",
+		)
+	}
+}
+
+// checkSuspiciousProcesses checks for suspicious processes and potential crypto miners
+func (t *ContainerSecurityTester) checkSuspiciousProcesses() {
+	t.log("Checking for suspicious processes and tools...")
+
+	for _, cmd := range t.cfg.SuspiciousCommands {
+		_, _, err := t.execInContainerWithTimeout([]string{"which", cmd}, 5*time.Second)
+		if err == nil {
+			t.addFinding(
+				fmt.Sprintf("Network tool found: %s", cmd),
+				fmt.Sprintf("Container contains network reconnaissance tool '%s' which could be used for lateral movement", cmd),
+				RISK_MEDIUM,
+				fmt.Sprintf("Remove %s from container image or use a minimal base image", cmd),
+			)
+		}
+	}
+
+	// Check for cryptocurrency miners
+	stdout, _, _ := t.execInContainerWithTimeout([]string{"ps", "aux"}, 10*time.Second)
+
+	for _, process := range t.cfg.MinerProcesses {
+		if strings.Contains(strings.ToLower(stdout), process) {
+			t.addFinding(
+				"Potential cryptocurrency miner detected",
+				fmt.Sprintf("Process matching crypto mining signature detected: %s", process),
+				RISK_CRITICAL,
+				"Investigate and remove unauthorized processes",
+			)
+		}
+	}
+}
+
+// checkWriteablePaths checks if critical system paths are writable
+func (t *ContainerSecurityTester) checkWriteablePaths() {
+	t.log("Checking for writable critical paths...")
+
+	for _, path := range t.cfg.CriticalPaths {
+		_, _, err := t.execInContainerWithTimeout([]string{"test", "-w", path}, 5*time.Second)
+		if err == nil {
+			t.addFinding(
+				fmt.Sprintf("Critical path is writable: %s", path),
+				"Container can write to critical system paths which could allow for persistence",
+				RISK_HIGH,
+				"Make critical paths read-only using a readOnlyRootFilesystem securityContext",
+			)
+		}
+	}
+}
+
+// checkHostPathVolumes checks for sensitive host path volumes mounted in the pod
+func (t *ContainerSecurityTester) checkHostPathVolumes() {
+	t.log("Checking for sensitive hostPath volumes...")
+	pod, err := t.clientset.CoreV1().Pods(t.namespace).Get(context.TODO(), t.pod, metav1.GetOptions{})
+	if err != nil {
+		t.log(fmt.Sprintf("Error getting pod details: %v", err))
+		return
+	}
+
+	for _, volume := range pod.Spec.Volumes {
+		if volume.HostPath != nil {
+			hostPath := volume.HostPath.Path
+			if hostPath == "/" || hostPath == "/etc" || hostPath == "/var" ||
+				strings.HasPrefix(hostPath, "/proc") || strings.HasPrefix(hostPath, "/sys") {
+				t.addFinding(
+					fmt.Sprintf("Critical hostPath volume mounted: %s", hostPath),
+					"Pod has access to sensitive host filesystem paths which enables container escape",
+					RISK_CRITICAL,
+					"Remove hostPath volume mounts for sensitive paths",
+				)
+			}
+		}
+	}
+}
+
+// checkRBACPermissions checks for dangerous RBAC permissions assigned to the pod's service account
+func (t *ContainerSecurityTester) checkRBACPermissions() {
+	t.log("Checking service account RBAC permissions...")
+
+	// Get service account name
+	pod, err := t.clientset.CoreV1().Pods(t.namespace).Get(context.TODO(), t.pod, metav1.GetOptions{})
+	if err != nil {
+		t.log(fmt.Sprintf("Error getting pod details: %v", err))
+		return
+	}
+
+	saName := "default"
+	if pod.Spec.ServiceAccountName != "" {
+		saName = pod.Spec.ServiceAccountName
+	}
+
+	for _, perm := range t.cfg.DangerousPermissions {
+		sar := &authv1.SelfSubjectAccessReview{
+			Spec: authv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authv1.ResourceAttributes{
+					Namespace: t.namespace,
+					Verb:      perm.Verb,
+					Resource:  perm.Resource,
+				},
+			},
+		}
+
+		review, err := t.clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
+		if err != nil {
+			t.log(fmt.Sprintf("Error checking RBAC permissions: %v", err))
+			continue
+		}
+
+		if review.Status.Allowed {
+			t.addFinding(
+				fmt.Sprintf("Excessive RBAC permission: %s %s", perm.Verb, perm.Resource),
+				fmt.Sprintf("Service account '%s' has permission to %s %s which could be used for privilege escalation",
+					saName, perm.Verb, perm.Resource),
+				perm.Risk,
+				"Implement least privilege RBAC policies",
+			)
+		}
+	}
+}
+
+// checkServiceAccountToken checks for access to and permissions of the service account token
+func (t *ContainerSecurityTester) checkServiceAccountToken() {
+	t.log("Checking service account token...")
+
+	// Check if token is accessible
+	tokenPath := "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	_, _, err := t.execInContainerWithTimeout([]string{"cat", tokenPath}, 5*time.Second)
+	if err == nil {
+		// Token is accessible, check if it's automounted
+		pod, err := t.clientset.CoreV1().Pods(t.namespace).Get(context.TODO(), t.pod, metav1.GetOptions{})
+		if err != nil {
+			t.log(fmt.Sprintf("Error getting pod details: %v", err))
+			return
+		}
+
+		if pod.Spec.AutomountServiceAccountToken == nil || *pod.Spec.AutomountServiceAccountToken {
+			t.addFinding(
+				"Service account token automatically mounted",
+				"The pod has a service account token automatically mounted, which could be used for lateral movement",
+				RISK_HIGH,
+				"Set automountServiceAccountToken: false in pod spec unless the token is required",
+			)
+		}
+	}
+}
+
 // runAllChecks executes all security tests concurrently.
 func (t *ContainerSecurityTester) runAllChecks() {
 	t.log("Starting container security tests...")
@@ -625,6 +1132,15 @@ func (t *ContainerSecurityTester) runAllChecks() {
 		t.checkNonRootUser,
 		t.checkReadOnlyFilesystem,
 		t.checkSecretsInEnvVars,
+		// New checks
+		t.checkSUIDBindaries,
+		t.checkCloudCredentials,
+		t.checkNetworkPolicies,
+		t.checkSuspiciousProcesses,
+		t.checkWriteablePaths,
+		t.checkHostPathVolumes,
+		t.checkRBACPermissions,
+		t.checkServiceAccountToken,
 	}
 
 	for _, check := range checks {
@@ -658,7 +1174,7 @@ func main() {
 		FullTimestamp: true,
 	})
 
-	var namespace, pod, container, outputFile string
+	var namespace, pod, container, outputFile, configFile string
 	var verbose, scanAllContainers bool
 
 	// Command-line flag parsing.
@@ -670,6 +1186,7 @@ func main() {
 	flag.StringVar(&container, "c", "", "Name of the target container (shorthand)")
 	flag.StringVar(&outputFile, "output", "", "Output file for JSON report")
 	flag.StringVar(&outputFile, "o", "", "Output file for JSON report (shorthand)")
+	flag.StringVar(&configFile, "config", "", "Path to configuration file")
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose output")
 	flag.BoolVar(&verbose, "v", false, "Enable verbose output (shorthand)")
 	flag.BoolVar(&scanAllContainers, "all-containers", false, "Scan all containers in the pod")
@@ -688,6 +1205,13 @@ func main() {
 	if namespace == "" || pod == "" {
 		fmt.Println("Error: namespace and pod name are required")
 		flag.Usage()
+		os.Exit(1)
+	}
+
+	// Load configuration
+	cfg, err := LoadConfig(configFile)
+	if err != nil {
+		fmt.Printf("Error loading configuration: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -769,7 +1293,7 @@ func main() {
 		fmt.Printf("\nScanning container: %s\n", containerName)
 
 		// Create and run the security tester for this container
-		tester, err := newSecurityTester(namespace, pod, containerName, verbose)
+		tester, err := newSecurityTester(namespace, pod, containerName, verbose, cfg)
 		if err != nil {
 			fmt.Printf("Error initializing security tester for container %s: %v\n", containerName, err)
 			continue

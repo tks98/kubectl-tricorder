@@ -1,0 +1,157 @@
+# kubectl-tricorder configuration file
+
+# Paths considered sensitive when mounted
+sensitiveMounts: 
+  - "/proc"
+  - "/sys"
+  - "/var/run/docker.sock"
+  - "/etc/shadow"
+  - "/root"
+  - "/var/lib/docker" 
+  - "/var/run"
+  - "/etc/kubernetes"  # Custom sensitive path
+  - "/boot"           # Additional sensitive mount
+  - "/dev"            # Device nodes can be sensitive
+  - "/var/lib/kubelet" # Kubernetes node data directory
+  - "/run/secrets"    # Secrets mounted by orchestration systems
+
+# Critical system paths that shouldn't be writable
+criticalPaths:
+  - "/etc/"
+  - "/bin/"
+  - "/sbin/"
+  - "/usr/bin/"
+  - "/usr/sbin/"
+  - "/lib/"
+  - "/lib64/"
+  - "/opt/app/"       # Custom application path
+  - "/var/lib/"       # Additional critical path
+  - "/usr/local/bin/" # Additional critical path
+
+# Suspicious commands that should not be in containers
+suspiciousCommands:
+  - "nmap"
+  - "nc"
+  - "netcat"
+  - "tcpdump"
+  - "wget"
+  - "curl"
+  - "ssh"
+  - "scp"         
+  - "tshark"        
+  - "hping"          
+  - "masscan"        
+
+# Patterns for cryptocurrency miners
+minerProcesses:
+  - "xmrig"
+  - "cgminer"
+  - "cryptonight"
+  - "stratum+tcp"
+  - "minerd"
+  - "ethminer"
+  - "monero"         
+  - "cpuminer"      
+  - "nicehash"      
+  - "bminer"         
+
+# Environment variables that might contain cloud credentials
+cloudCredentialEnvVars:
+  - "AWS_ACCESS_KEY"
+  - "AWS_SECRET_KEY"
+  - "AWS_SECRET_ACCESS_KEY"
+  - "AZURE_CLIENT_ID"
+  - "AZURE_TENANT_ID"
+  - "AZURE_CLIENT_SECRET"
+  - "GOOGLE_APPLICATION_CREDENTIALS"
+  - "GOOGLE_CLOUD_PROJECT"
+  - "DO_AUTH_TOKEN"
+  - "DIGITALOCEAN_ACCESS_TOKEN"
+  - "ALICLOUD_ACCESS_KEY"  # Custom cloud provider
+  - "IBM_CLOUD_API_KEY"    # Additional cloud provider
+  - "RACKSPACE_API_KEY"    # Additional cloud provider
+
+# Linux capabilities considered dangerous
+# Format: capability_name: risk_level (LOW, MEDIUM, HIGH, CRITICAL)
+dangerousCapabilities:
+  CAP_CHOWN: MEDIUM
+  CAP_DAC_OVERRIDE: HIGH
+  CAP_SETUID: HIGH
+  CAP_SYS_ADMIN: CRITICAL
+  CAP_NET_ADMIN: HIGH      # Custom dangerous capability
+  CAP_SYS_PTRACE: HIGH     # Added: Allows process debugging, potentially exploitable
+  CAP_SYS_MODULE: CRITICAL # Added: Allows module manipulation
+  CAP_SYS_BOOT: HIGH       # Added: Can control boot-related functions
+
+# RBAC permissions that are considered dangerous
+dangerousPermissions:
+  - resource: "pods"
+    verb: "create"
+    risk: HIGH
+  - resource: "pods" 
+    verb: "delete"
+    risk: HIGH
+  - resource: "pods"
+    verb: "exec"
+    risk: HIGH             # Added: Pod exec access is highly risky
+  - resource: "pods"
+    verb: "attach"
+    risk: HIGH             # Added: Pod attach can be used for lateral movement
+  - resource: "pods"
+    verb: "portforward"
+    risk: HIGH             # Added: Port forwarding can expose internal services
+  - resource: "secrets"
+    verb: "get" 
+    risk: HIGH
+  - resource: "secrets"
+    verb: "list"
+    risk: HIGH
+  - resource: "secrets"
+    verb: "create"
+    risk: HIGH             # Added: Creating secrets can be abused for credential injection
+  - resource: "deployments"
+    verb: "create" 
+    risk: HIGH
+  - resource: "deployments"
+    verb: "delete"
+    risk: HIGH
+  - resource: "daemonsets"
+    verb: "create"
+    risk: HIGH
+  - resource: "clusterroles"
+    verb: "bind" 
+    risk: HIGH
+  - resource: "nodes"
+    verb: "get"
+    risk: HIGH
+  - resource: "nodes"
+    verb: "list" 
+    risk: HIGH
+  # Custom dangerous permission
+  - resource: "clusterroles"
+    verb: "escalate"
+    risk: CRITICAL
+
+# Regex patterns for identifying sensitive information
+# Format: pattern_name: regex_pattern
+sensitivePatterns:
+  "AWS Key": "(?i)(aws_access_key|aws_secret_key|aws_session_token)"
+  "Password": "(?i)(password|passwd|pass)"
+  "API Key": "(?i)(api[_-]?key|apikey|api[_-]?token|token)"
+  "Certificate": "(?i)(ssl|tls|cert|certificate|key)"
+  "OAuth": "(?i)(oauth|auth[_-]?token)"
+  "Database": "(?i)(database|db)[_-]?(password|passwd|pwd)"
+  "Secret": "(?i)secret"
+  "Credentials": "(?i)cred(ential)?s?"
+  "API Token": "(?i)(auth[_-]?token|access[_-]?token)"
+  "Private Key": "(?i)-----BEGIN(.*?)PRIVATE KEY-----"
+  "SSH Key": "(?i)(ssh-rsa|ssh-dss|ecdsa-sha2-nistp256)"
+  "JWT": "(?i)[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+"
+  "GitHub Token": "(?i)ghp_[A-Za-z0-9]{36}"
+  "GitLab Token": "(?i)glpat-[A-Za-z0-9]{20,}"
+  "Slack Token": "(?i)xox[baprs]-[0-9]{12}-[0-9]{12}-[A-Za-z0-9]{24}"
+  "Google API Key": "(?i)AIza[0-9A-Za-z\\-_]{35}"
+  "Stripe Secret": "(?i)sk_(live|test)_[0-9a-zA-Z]{24}"
+  "Heroku API Key": "(?i)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+  "PGP Private Key": "(?i)-----BEGIN PGP PRIVATE KEY BLOCK-----"
+  "OpenSSH Private Key": "(?i)-----BEGIN OPENSSH PRIVATE KEY-----"
