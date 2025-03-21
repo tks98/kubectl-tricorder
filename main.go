@@ -60,6 +60,7 @@ func DefaultConfig() Configuration {
 			"/proc", "/sys", "/var/run/docker.sock", "/etc/shadow",
 			"/root", "/var/lib/docker", "/var/run",
 			"/etc/kubernetes", "/boot", "/dev", "/var/lib/kubelet", "/run/secrets",
+			"/sys/fs/bpf",
 		},
 		CriticalPaths: []string{
 			"/etc/", "/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/", "/lib/", "/lib64/",
@@ -68,6 +69,7 @@ func DefaultConfig() Configuration {
 		SuspiciousCommands: []string{
 			"nmap", "nc", "netcat", "tcpdump", "wget", "curl", "ssh", "scp",
 			"socat", "tshark", "hping", "masscan",
+			"bpftrace", "bpftool", "bcc-tools",
 		},
 		MinerProcesses: []string{
 			"xmrig", "cgminer", "cryptonight", "stratum+tcp", "minerd", "ethminer",
@@ -88,6 +90,7 @@ func DefaultConfig() Configuration {
 			"CAP_SYS_PTRACE":   RISK_HIGH,
 			"CAP_SYS_MODULE":   RISK_CRITICAL,
 			"CAP_SYS_BOOT":     RISK_HIGH,
+			"CAP_BPF":          RISK_HIGH,
 		},
 		DangerousPermissions: []RBACPermission{
 			{Resource: "pods", Verb: "create", Risk: RISK_HIGH},
@@ -417,6 +420,9 @@ func (t *ContainerSecurityTester) checkContainerCapabilities() {
 							case "CAP_SYS_PTRACE":
 								description = "Container can use ptrace to inspect processes"
 								mitigation = "Remove CAP_SYS_PTRACE capability"
+							case "CAP_BPF":
+								description = "Container can create and load eBPF programs which could be used for kernel-level access"
+								mitigation = "Remove CAP_BPF capability unless absolutely necessary"
 							default:
 								description = fmt.Sprintf("Container has %s capability which may be dangerous", capName)
 								mitigation = fmt.Sprintf("Remove %s capability if not required", capName)
@@ -1114,6 +1120,68 @@ func (t *ContainerSecurityTester) checkServiceAccountToken() {
 	}
 }
 
+// checkEbpfAccess checks for potential eBPF access that could be used for container escape
+func (t *ContainerSecurityTester) checkEbpfAccess() {
+	t.log("Checking for eBPF access...")
+
+	// Check if BPF syscalls are restricted with seccomp
+	stdout, _, err := t.execInContainerWithTimeout([]string{"grep", "bpf", "/proc/self/status"}, 5*time.Second)
+	if err == nil && !strings.Contains(stdout, "0-0:allow") {
+		t.addFinding(
+			"Unrestricted BPF syscall access",
+			"Container can use BPF syscalls which could be used for container escape or unauthorized monitoring",
+			RISK_HIGH,
+			"Apply a seccomp profile that restricts BPF syscalls",
+		)
+	}
+
+	// Check for write access to the BPF filesystem
+	_, _, err = t.execInContainerWithTimeout([]string{"test", "-w", "/sys/fs/bpf"}, 5*time.Second)
+	if err == nil {
+		t.addFinding(
+			"Writable BPF filesystem",
+			"Container can write to /sys/fs/bpf which may allow loading unauthorized eBPF programs",
+			RISK_HIGH,
+			"Mount /sys/fs/bpf as read-only or remove the mount entirely",
+		)
+	}
+
+	// Check for existing eBPF programs
+	stdout, _, err = t.execInContainerWithTimeout([]string{"ls", "-la", "/sys/fs/bpf"}, 5*time.Second)
+	if err == nil && len(stdout) > 0 && !strings.Contains(stdout, "No such file") {
+		t.addFinding(
+			"eBPF programs detected",
+			"Found existing eBPF programs or maps that may indicate container monitoring or potential escape vectors",
+			RISK_MEDIUM,
+			"Investigate eBPF usage and restrict container capabilities",
+		)
+	}
+
+	// Check for common eBPF development tools
+	for _, tool := range []string{"bpftool", "bpftrace", "bcc"} {
+		_, _, err := t.execInContainerWithTimeout([]string{"which", tool}, 5*time.Second)
+		if err == nil {
+			t.addFinding(
+				fmt.Sprintf("eBPF tool found: %s", tool),
+				fmt.Sprintf("Container contains eBPF development tool %s which could be used for kernel-level access", tool),
+				RISK_HIGH,
+				fmt.Sprintf("Remove %s from container image", tool),
+			)
+		}
+	}
+
+	// Check if the process is being traced by eBPF
+	stdout, _, err = t.execInContainerWithTimeout([]string{"cat", "/proc/self/environ"}, 5*time.Second)
+	if err == nil && strings.Contains(stdout, "BPF_") {
+		t.addFinding(
+			"Process being traced by eBPF",
+			"Container processes appear to be traced by eBPF programs which may indicate unauthorized monitoring",
+			RISK_MEDIUM,
+			"Investigate eBPF traces and ensure they are authorized",
+		)
+	}
+}
+
 // runAllChecks executes all security tests concurrently.
 func (t *ContainerSecurityTester) runAllChecks() {
 	t.log("Starting container security tests...")
@@ -1141,6 +1209,7 @@ func (t *ContainerSecurityTester) runAllChecks() {
 		t.checkHostPathVolumes,
 		t.checkRBACPermissions,
 		t.checkServiceAccountToken,
+		t.checkEbpfAccess,
 	}
 
 	for _, check := range checks {

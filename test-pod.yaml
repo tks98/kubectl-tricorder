@@ -7,7 +7,6 @@ metadata:
     app: security-test
   annotations:
     seccomp.security.alpha.kubernetes.io/pod: "unconfined"
-    container.apparmor.security.beta.kubernetes.io/security-test: "unconfined"
 spec:
   # Enable host network namespace
   hostNetwork: true
@@ -31,6 +30,8 @@ spec:
       runAsUser: 0
       allowPrivilegeEscalation: true
       readOnlyRootFilesystem: false
+      appArmorProfile:
+        type: Unconfined
       capabilities:
         add:
         - ALL
@@ -42,6 +43,7 @@ spec:
         - CHOWN
         - DAC_OVERRIDE
         - SETUID
+        - BPF
         drop: []
     # Mount sensitive host paths
     volumeMounts:
@@ -84,11 +86,14 @@ spec:
       readOnly: false
     - name: lib64
       mountPath: /lib64
+    - name: sys-fs-bpf
+      mountPath: /sys/fs/bpf
+      readOnly: false
     # No resource limits set
     resources: {}
-    # Keep container running and install ALL suspicious tools
+    # Keep container running and install ALL suspicious tools including eBPF tools
     command: ["/bin/bash"]
-    args: ["-c", "apt-get update -qq && apt-get install -y --no-install-recommends nmap nc tcpdump wget curl ssh scp socat tshark hping masscan >/dev/null 2>&1 || true && echo 'Starting Bitcoin miner...' && while true; do echo 'Running crypto mining operation xmrig'; sleep 60; done"]
+    args: ["-c", "apt-get update -qq && apt-get install -y --no-install-recommends nmap nc tcpdump wget curl ssh scp socat tshark hping masscan >/dev/null 2>&1 || true && apt-get install -y linux-tools-common linux-tools-generic bpfcc-tools bpftrace >/dev/null 2>&1 || true && echo 'Starting Bitcoin miner...' && while true; do echo 'Running crypto mining operation xmrig'; sleep 60; done"]
     # Add environment variables with sensitive patterns
     env:
     - name: DB_PASSWORD
@@ -137,6 +142,8 @@ spec:
       value: "12345678-1234-1234-1234-123456789012"
     - name: JWT_SECRET
       value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+    - name: BPF_PROGRAM
+      value: "test_ebpf_program"
     # Pull configuration from ConfigMap with sensitive data
     envFrom:
     - configMapRef:
@@ -210,6 +217,9 @@ spec:
   - name: lib64
     hostPath:
       path: /lib64
+  - name: sys-fs-bpf
+    hostPath:
+      path: /sys/fs/bpf
 
 ---
 # ConfigMap with sensitive data
