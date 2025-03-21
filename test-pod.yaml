@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-test-pod
+  namespace: default
+  labels:
+    app: security-test
+spec:
+  # Enable host network namespace
+  hostNetwork: true
+  
+  containers:
+  - name: security-test
+    image: ubuntu:latest
+    # Run as root with privileged security context
+    securityContext:
+      privileged: true
+      runAsUser: 0
+      allowPrivilegeEscalation: true
+      capabilities:
+        add:
+          - ALL
+          - SYS_ADMIN
+          - NET_ADMIN
+          - SYS_MODULE
+    # Mount sensitive host paths
+    volumeMounts:
+    - name: host-root
+      mountPath: /host-root
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+    - name: proc
+      mountPath: /host-proc
+    - name: sys
+      mountPath: /host-sys
+    - name: dev
+      mountPath: /host-dev
+    # No resource limits set
+    resources: {}
+    # Keep container running
+    command: ["/bin/bash"]
+    args: ["-c", "while true; do sleep 3600; done"]
+  
+  # Define volumes for sensitive mounts
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+  - name: proc
+    hostPath:
+      path: /proc
+  - name: sys
+    hostPath:
+      path: /sys
+  - name: dev
+    hostPath:
+      path: /dev 
