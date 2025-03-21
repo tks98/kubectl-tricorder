@@ -19,6 +19,11 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
+// Version information - will be set during build
+var (
+	Version = "dev" // This will be overridden during build
+)
+
 func main() {
 	// Initialize Logrus for structured logging.
 	log.SetFormatter(&log.TextFormatter{
@@ -26,7 +31,7 @@ func main() {
 	})
 
 	var namespace, pod, container, outputFile, configFile string
-	var verbose, scanAllContainers bool
+	var verbose, scanAllContainers, showVersion bool
 
 	// Command-line flag parsing.
 	flag.StringVar(&namespace, "namespace", "", "Namespace of the target pod")
@@ -42,12 +47,22 @@ func main() {
 	flag.BoolVar(&verbose, "v", false, "Enable verbose output (shorthand)")
 	flag.BoolVar(&scanAllContainers, "all-containers", false, "Scan all containers in the pod")
 	flag.BoolVar(&scanAllContainers, "a", false, "Scan all containers in the pod (shorthand)")
+	flag.BoolVar(&showVersion, "version", false, "Show version information and exit")
+	flag.BoolVar(&showVersion, "V", false, "Show version information and exit (shorthand)")
 	flag.Parse()
+
+	// Handle version flag first
+	if showVersion {
+		fmt.Printf("kubectl-tricorder version %s\n", Version)
+		os.Exit(0)
+	}
 
 	// Print banner.
 	fmt.Println(`
 ╔═══════════════════════════════════════════════════╗
 ║          kubectl-tricorder - Container Security   ║
+║        "I'm a scanner, not a miracle worker!"     ║
+║        Making your clusters secure, Captain       ║
 ║          For authorized security testing only.    ║
 ╚═══════════════════════════════════════════════════╝
 `)
