@@ -1,6 +1,8 @@
 # kubectl-tricorder
 A kubectl plugin that helps identify security risks in your Kubernetes pods by examining container configurations, privileges, and potential escape vectors.
 
+> "I'm a scanner, not a miracle worker!"
+
 ## Features
 
 - Detects container security issues including privilege escalations and escape vectors
